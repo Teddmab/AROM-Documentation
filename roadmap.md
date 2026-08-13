@@ -2,6 +2,14 @@
 
 Roughly in priority order.
 
+## Done
+
+- **Order fulfillment → `ventes` bridge** (was #5 below). Marking a
+  storefront order "Livrée" in the dashboard's Commercialisation section
+  now atomically closes the order and writes one `ventes` row per line
+  item — storefront sales show up in commercial KPIs immediately. See
+  [data-model.md](data-model.md#order--ventes-bridge).
+
 ## Security & correctness
 
 1. **Staff data-level scoping.** `firestore.rules` currently grants any
@@ -23,12 +31,6 @@ Roughly in priority order.
 
 ## Product
 
-5. **Order fulfillment isn't linked to `ventes`.** Confirming/fulfilling a
-   storefront order doesn't create a corresponding `ventes` row, so
-   storefront sales don't yet show up in the dashboard's commercial KPIs.
-   Bridging this (likely via a small Cloud Function trigger on `orders`
-   status changes, or a manual "convert to vente" action in the dashboard)
-   is the highest-value next step once the storefront sees real traffic.
 6. **No product photos.** `storage.rules` reserves `products/**`; the
    catalog UI and `products` docs don't have an image field wired up yet.
 7. **No admin UI for account management.** Roles/menus are managed via
