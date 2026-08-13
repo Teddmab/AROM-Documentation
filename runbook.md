@@ -13,6 +13,37 @@ No `.env` needed for local dev against the live `arom-production` project
 — `src/lib/firebase/config.ts` ships working defaults. Copy `.env.example`
 to `.env.local` only if pointing at a different Firebase project.
 
+## Local development against the Firebase Emulator Suite
+
+For changes that write data (anything touching Firestore/Auth), prefer
+testing against the emulator suite over live `arom-production` data.
+`AROM-Backend/firebase.json` already has emulator ports configured
+(Auth 9099, Firestore 8080, Storage 9199, UI 4000).
+
+```
+# Terminal 1 — emulators (from AROM-Backend)
+firebase emulators:start --project demo-arom-local
+# UI at http://127.0.0.1:4000 — if port 8080 is already taken locally,
+# bump "emulators.firestore.port" in firebase.json for the session.
+
+# Terminal 2 — seed data + a test admin account (from AROM-Backend)
+FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 \
+  GCLOUD_PROJECT=demo-arom-local npm run seed
+FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 \
+  GCLOUD_PROJECT=demo-arom-local npm run create-user -- admin@test.local "TestPass123!" admin "Test Admin"
+
+# Terminal 3 — frontend (from AROM-Production), .env.local:
+#   VITE_USE_FIREBASE_EMULATOR=true
+#   VITE_FIREBASE_PROJECT_ID=demo-arom-local
+#   VITE_FIREBASE_EMULATOR_FIRESTORE_PORT=8080   # only if you changed the port above
+bun run dev
+```
+
+Partner accounts self-register normally at `/storefront/signup` — no
+script needed, same as against live data. Emulator data is in-memory and
+resets when the emulator process stops (`--import`/`--export-on-exit`
+flags exist if persistence across restarts is ever wanted).
+
 ## Creating an admin or staff account
 
 ```
