@@ -33,17 +33,32 @@ of that is stored.
 | --- | --- | --- |
 | `users/{uid}` | `email`, `displayName`, `role` (`admin`\|`staff`\|`partner`), `menus` (`"all"` or `string[]`), `active`, `createdAt` | `uid` matches the Firebase Auth UID |
 | `products/{id}` | `name`, `format`, `price`, `active` | Storefront catalog; seeded with the three bottle formats from `parametres` |
-| `orders/{id}` | `partnerId`, `partnerName`, `items: {productId, name, quantity, unitPrice}[]`, `total`, `status` (`pending`\|`confirmed`\|`fulfilled`\|`cancelled`), `createdAt` | One doc per storefront order |
+| `orders/{id}` | `partnerId`, `partnerName`, `items: {productId, name, quantity, unitPrice, format}[]`, `total`, `status` (`pending`\|`confirmed`\|`fulfilled`\|`cancelled`), `createdAt` | One doc per storefront order. `format` is a snapshot of the product's format at order time (not a live join), matching how `name`/`unitPrice` are already snapshotted |
 
 `firestore.indexes.json` defines a composite index on
 `orders(partnerId ASC, createdAt DESC)` for the "my orders" query.
 
+## Order → ventes bridge
+
+Marking an order "Livrée" in the dashboard's Commercialisation section
+(`OrdersCard` in `AROM-Production/src/routes/dashboard.tsx`) atomically:
+
+1. Sets the order's `status` to `fulfilled`.
+2. Writes one `ventes/{id}` row per order line item, via `writeBatch` so
+   both happen together or not at all.
+
+Each generated `ventes` doc uses a deterministic ID
+(`VTE-ORD-<orderId>-<itemIndex>`) rather than a random one, so re-running
+the conversion (e.g. a retried click) overwrites the same doc instead of
+duplicating it — `setDoc`, not `addDoc`. Conventions for the generated
+row: `canal` is always `"Grossiste"` (distinguishes partner/storefront
+sales from the channels used by manually-entered ventes), `commerciale`
+is `"Boutique partenaire"`, and `encaisse` is `0` — storefront orders
+aren't a checkout (see [architecture.md](architecture.md)), so payment
+status is reconciled manually afterward in the ventes journal like any
+other credit sale.
+
 ## What's intentionally not modeled yet
 
-- No linkage between a storefront `orders` doc and the `ventes` collection
-  — confirming/fulfilling an order today doesn't automatically create a
-  `ventes` row. Bridging that is the natural next step once order
-  fulfillment is a real workflow staff use daily (see
-  [roadmap.md](roadmap.md)).
 - No product photo field on `products` yet, though `storage.rules`
   already reserves `products/**` in Storage for this.
