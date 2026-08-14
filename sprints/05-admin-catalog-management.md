@@ -1,6 +1,6 @@
 # Sprint 05 — Admin catalog management
 
-**Status:** Todo
+**Status:** Done — [Teddmab/AROM-Production#6](https://github.com/Teddmab/AROM-Production/pull/6)
 
 **Rôle concerné :** Admin / Staff
 **Page / zone :** Dashboard — Commercialisation (nouvelle carte "Catalogue")
@@ -39,24 +39,23 @@ formats.
 
 ## Contraintes
 
-bun, not npm. Test against the Firebase emulator (Storage emulator too —
-not yet used by any local dev workflow, needs adding to the
-`firebase emulators:start` command in the runbook). PR against `main`.
-No `firestore.rules`/`storage.rules` changes needed — verify this stays
-true rather than assuming it.
+bun, not npm. Test against the Firebase emulator. PR against `main`. No
+`firestore.rules`/`storage.rules` changes needed — verified true, not
+assumed (`storage.rules` already had `products/**` read: true / write:
+admin-or-staff; `firebase emulators:start` already starts the Storage
+emulator alongside Firestore/Auth, and `config.ts` already connects to
+it under `VITE_USE_FIREBASE_EMULATOR` — both from earlier sprints).
 
 ## Livrable
 
 `AROM-Production` (dashboard Catalogue card, storefront product card
-image display). `AROM-Documentation` (data-model.md: `imageUrl` field;
-runbook.md: Storage emulator in the local dev flow if it wasn't already
-covered).
+image display). `AROM-Documentation` (data-model.md: `imageUrl` field).
 
 ## Test de fumée
 
-- [ ] As admin, create a new product with a name, price, and photo
-- [ ] It appears on `/storefront` with the photo, immediately, no refresh
-- [ ] Edit its price — the storefront reflects the new price live
-- [ ] Deactivate it — it disappears from the storefront catalog
-- [ ] Existing partner orders referencing the old product are unaffected
+- [x] As admin, create a new product with a name, price, and photo
+- [x] It appears on `/storefront` with the photo, immediately, no refresh
+- [x] Edit its price — the storefront reflects the new price live
+- [x] Deactivate it — it disappears from the storefront catalog
+- [x] Existing partner orders referencing the old product are unaffected
       (orders snapshot product data at order time, per sprint 01)

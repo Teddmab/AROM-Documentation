@@ -44,7 +44,7 @@ milestone (see [roadmap.md](../roadmap.md) for the full backlog):
 | 02 | [iOS-style redesign & branding](02-ios-redesign-branding.md) | Tous | Landing, Login, Signup, Storefront | Done |
 | 03 | [Bug fixes, responsive audit, landing animations](03-bugfixes-responsive-animations.md) | Visiteur/Partenaire | Landing, Login, Signup | Done |
 | 04 | [Account-lockout & signup session fix](04-account-lockout-fix.md) | Tous | Login, toutes les pages protégées | Done |
-| 05 | [Admin catalog management](05-admin-catalog-management.md) | Admin/Staff | Dashboard — Commercialisation | Todo |
+| 05 | [Admin catalog management](05-admin-catalog-management.md) | Admin/Staff | Dashboard — Commercialisation | Done |
 | 06 | [Promo banner](06-promo-banner.md) | Admin → Partenaire | Dashboard, Storefront | Todo |
 | 07 | [Storefront order tracking](07-storefront-order-tracking.md) | Partenaire/Admin | Storefront, Dashboard | Todo |
 | 08 | [PawaPay mobile money (stub)](08-pawapay-payment-stub.md) | Partenaire/Admin | Storefront checkout, Dashboard | Todo |
