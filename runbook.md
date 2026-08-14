@@ -111,6 +111,32 @@ rm key.json
 List and revoke old keys with `gcloud iam service-accounts keys list
 --iam-account=arom-ci-deploy@arom-production.iam.gserviceaccount.com`.
 
+## Enabling Google / Facebook sign-in
+
+App code never sees a client ID/secret for either — the whole OAuth
+handshake is configured in the Firebase console and Firebase's own
+backend handles it. This only needs doing once per Firebase project.
+
+**Google:** Firebase console → `arom-production` → Authentication →
+Sign-in method → Google → Enable → set a support email → Save. Nothing
+else required — no external app registration.
+
+**Facebook:**
+1. Create an app at [developers.facebook.com](https://developers.facebook.com)
+   (or use an existing one) and add the **Facebook Login** product to it.
+2. Firebase console → Authentication → Sign-in method → Facebook →
+   Enable → paste the app's **App ID** and **App Secret** → Save. Firebase
+   shows an OAuth redirect URI
+   (`https://arom-production.firebaseapp.com/__/auth/handler`).
+3. Paste that URI into the Meta app's Facebook Login → Settings →
+   **Valid OAuth Redirect URIs**.
+4. The Meta app needs to be in **Live** mode (not just Development) for
+   accounts other than the app's own testers/admins to be able to sign in.
+
+Local dev against the emulator needs none of this — the Auth emulator
+has its own mock IdP flow (an "Auto-generate user information" button in
+the popup) that works without any real Google/Facebook account.
+
 ## If Firebase Auth needs to be re-enabled on a new project
 
 Enabling Auth (Identity Platform) required linking a GCP billing account
@@ -125,28 +151,43 @@ new region, disaster recovery):
 
 ## Frontend deploys
 
-**As of 2026-08-14, nothing deploys `AROM-Production` automatically.**
-Lovable's own pipeline used to (on every push to the connected branch);
-the project has since been disconnected from Lovable, on both Lovable's
-dashboard and in the codebase (see
+**As of 2026-08-14, `AROM-Production` still isn't deploying
+automatically, but the pipeline is built and waiting on credentials.**
+Lovable's own pipeline used to deploy it (on every push to the connected
+branch); the project has since been disconnected from Lovable, on both
+Lovable's dashboard and in the codebase (see
 [architecture.md](architecture.md#update-2026-08-14-lovable-removed)).
-GitHub Actions CI on that repo remains verification-only
-(lint/typecheck/build); it still does not deploy.
 
-An independent Cloudflare Workers deploy pipeline is the planned
-replacement, not yet set up. It needs:
+A `deploy` job now exists in `AROM-Production/.github/workflows/ci.yml`
+(sprint 12) — it runs after `verify` passes, only on push to `main`, and
+does `bun run build` + `wrangler deploy` via `cloudflare/wrangler-action`.
+A root `wrangler.jsonc` pins the Worker name to `arom-production` (Nitro
+merges it into the `wrangler.json` it generates at build time, so this
+no longer falls back to an auto-generated name).
 
-1. A Cloudflare API token (Workers Scripts: Edit permission) and
-   Account ID, from whoever owns the Cloudflare account this should
-   deploy under.
-2. A `wrangler.json`/`wrangler.toml` pinning a stable Worker name
-   (`vite build` currently falls back to an auto-generated name –
-   `teddmab-arom-production` — when none is committed, which works but
-   isn't a name to depend on staying stable across machines).
-3. A GitHub Actions workflow (`CLOUDFLARE_API_TOKEN` /
-   `CLOUDFLARE_ACCOUNT_ID` repo secrets, `wrangler deploy` on push to
-   `main`), mirroring how `AROM-Backend/.github/workflows/deploy-rules.yml`
-   already deploys Firestore/Storage rules.
+**Important — this is Cloudflare Workers, not Cloudflare Pages.** Nitro's
+`cloudflare-module` preset outputs a Workers entrypoint + `wrangler.json`,
+which Pages' generic "build command + output directory" git-integration
+flow doesn't understand (would deploy a static shell with no SSR — the
+dashboard, storefront auth, and PawaPay server functions would all
+break). If setting this up from the Cloudflare dashboard rather than the
+GitHub Actions workflow, use "Workers Builds," not "Pages."
 
-Until this is in place, a manual deploy from a machine with `wrangler`
-authenticated works: `bun run build && npx wrangler deploy`.
+The only thing missing before pushes to `main` actually deploy: two
+GitHub repo secrets, from whoever owns the Cloudflare account this
+should deploy under —
+
+1. `CLOUDFLARE_API_TOKEN` — scoped to "Edit Cloudflare Workers" (the
+   Cloudflare dashboard's own token-creation template covers this).
+2. `CLOUDFLARE_ACCOUNT_ID` — visible on the right sidebar of any
+   Cloudflare dashboard page.
+
+Add both under `AROM-Production` → Settings → Secrets and variables →
+Actions. The next push to `main` after that deploys automatically; no
+further setup needed.
+
+Until then, a manual deploy from a machine with `wrangler` authenticated
+still works: `bun run build && cd .output/server && npx wrangler deploy`
+— the deploy has to run from `.output/server` (where Nitro writes the
+generated `wrangler.json` with the real `main`/`assets` paths), not repo
+root, where only the name-pinning `wrangler.jsonc` lives.

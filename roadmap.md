@@ -28,6 +28,37 @@ individual, PR-sized sprints.
   for how a pure `firestore.rules` cross-document check does the whole
   job. See
   [Teddmab/AROM-Production#7](https://github.com/Teddmab/AROM-Production/pull/7).
+- **Guided boutique onboarding.** `/storefront/signup` was a three-field
+  form with no phone, address, or verification info — not enough to
+  actually deliver to or vet a new boutique. Now a 5-step wizard
+  collects contact info, a structured delivery address, and an optional
+  KYC field, and denormalizes phone/address onto each order so the
+  dashboard shows what's needed to fulfill it. See
+  [sprints/13](sprints/13-guided-boutique-onboarding.md) and
+  [data-model.md](data-model.md#guided-boutique-onboarding-sprint-13).
+- **Payment on the storefront** (was #6c below). `/storefront` is now
+  tabbed (Catalogue / Mes commandes) and "Commander" opens a checkout
+  sheet where the partner chooses mobile money (PawaPay, stubbed — no
+  real credentials yet) or cash on delivery; the order→`ventes` bridge
+  now writes the real paid amount instead of a hardcoded `encaisse: 0`.
+  Server-side webhook confirmation is still deferred (needs Cloud
+  Functions, see #10 below). See
+  [sprints/08](sprints/08-pawapay-payment-stub.md) and
+  [data-model.md](data-model.md#payment-sprint-08-stub-phase).
+- **Admin UI for the storefront catalog** (was #6 below — this had
+  already shipped in [sprints/05](sprints/05-admin-catalog-management.md)
+  but this list was never updated to reflect it). Admin/staff can add,
+  price, deactivate, photograph, and (sprint 14) describe a product from
+  the dashboard.
+- **Promo banner** (was #6b below). A single active-or-not promo, set by
+  admin, shown live at the top of `/storefront`. See
+  [sprints/06](sprints/06-promo-banner.md).
+- **Storefront order tracking** and **self-service profile/order/product
+  detail**. A partner can now see and correct their own KYC/delivery
+  info at `/storefront/profile`, see a real admin-set delivery date on
+  their order, and open a detail sheet for any order or product instead
+  of a bare list. See [sprints/07](sprints/07-storefront-order-tracking.md)
+  and [sprints/14](sprints/14-storefront-self-service.md).
 
 ## Security & correctness
 
@@ -50,19 +81,6 @@ individual, PR-sized sprints.
 
 ## Product
 
-6. **No admin UI for the storefront catalog at all** — not just photos.
-   `products` is only ever written by `AROM-Backend/scripts/seed.mjs` or
-   by hand in the Firestore console; there's no way to add, price,
-   deactivate, or photograph a product from the dashboard, even though
-   `storage.rules` already reserves `products/**` for images. See
-   [flows.md](flows.md#how-data-circulates-today).
-6b. **No promo banner.** Admin has no way to surface a promotion on
-   `/storefront` — doesn't exist in any form yet.
-6c. **No payment on the storefront.** Orders go straight from
-   pending → confirmed → fulfilled with no payment concept; the
-   order→`ventes` bridge always writes `encaisse: 0`. PawaPay mobile
-   money plan (coexisting with the manual/cash flow) is in
-   [flows.md](flows.md#payment--pawapay-mobile-money).
 6d. **`clients` (internal registry) and `users` (partner accounts) are
    disconnected systems** — a storefront order never creates a `clients`
    doc, and `ventes.idClient` is free text, not a foreign key. Not
@@ -96,11 +114,12 @@ individual, PR-sized sprints.
     Functions-related billing surface until it's actually wanted.
 11. **Nothing currently deploys `AROM-Production`.** Was entirely owned by
     Lovable's pipeline; the project has been disconnected from Lovable
-    (2026-08-14, see [architecture.md](architecture.md#update-2026-08-14-lovable-removed))
-    and no replacement is live yet. This is no longer a someday-maybe
-    item — until an independent Cloudflare Workers pipeline is set up
-    (needs a Cloudflare API token + account ID), merging a PR here does
-    not update the live site. See
+    (2026-08-14, see [architecture.md](architecture.md#update-2026-08-14-lovable-removed)).
+    An independent Cloudflare Workers pipeline is now built (sprint 12,
+    [Teddmab/AROM-Production#11](https://github.com/Teddmab/AROM-Production/pull/11))
+    but not yet live — it needs `CLOUDFLARE_API_TOKEN` and
+    `CLOUDFLARE_ACCOUNT_ID` as GitHub repo secrets before pushes to
+    `main` actually deploy. See
     [runbook.md](runbook.md#frontend-deploys) for exactly what's needed.
 
 ## From the 2026-08-14 kickoff meeting (client: Ethical Mine)

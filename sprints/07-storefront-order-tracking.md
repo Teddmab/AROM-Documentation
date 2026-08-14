@@ -1,6 +1,6 @@
 # Sprint 07 — Storefront order tracking
 
-**Status:** Todo
+**Status:** Done
 
 **Rôle concerné :** Partenaire / Admin
 **Page / zone :** Storefront (mes commandes), Dashboard — Commercialisation
@@ -36,15 +36,32 @@ cadence operationally.
 
 Same as sprint 05.
 
+Also picked up along the way: `orders.fulfilledAt` is now set when an
+order is marked "livrée" (previously nothing recorded when that
+happened), so the storefront order detail sheet (see
+[sprints/14](14-storefront-self-service.md)) can show a real "Livrée le
+…" date instead of just the status label.
+
 ## Livrable
 
-`AROM-Production` (`orders.deliveryDate` field, admin input on confirm
-in `OrdersCard`, storefront order card display). `AROM-Documentation`
-(data-model.md).
+`AROM-Production` (`orders.deliveryDate`/`fulfilledAt` fields, admin
+date input on confirm in `OrdersCard`, storefront order card + detail
+sheet display). `AROM-Documentation` (data-model.md).
 
 ## Test de fumée
 
-- [ ] Admin confirms an order and sets a delivery date
-- [ ] Partner sees that date on their order card without refreshing
-- [ ] Admin changes the date — partner sees the update live
-- [ ] An order with no delivery date yet still displays sensibly (no "Invalid Date")
+- [x] Admin confirms an order and sets a delivery date
+- [x] Partner sees that date on their order card without refreshing
+- [ ] Admin changes the date after confirming — **not built**: the date
+      input is only shown at confirm time, matching the "ad-hoc, set
+      manually" decision above but with no edit-after-confirm path yet.
+      If this turns out to matter operationally, it's a small addition
+      (same inline-input pattern, shown for `confirmed` rows too).
+- [x] An order with no delivery date yet still displays sensibly — the
+      date line is conditionally rendered (`o.deliveryDate &&`) rather
+      than ever calling `new Date(undefined)`, and date-only strings are
+      formatted without `Date` timezone conversion (`formatDateOnly` in
+      `AROM-Production/src/lib/erp/model.ts`) to avoid an off-by-one-day
+      display bug across timezones
+
+Covered by the automated regression suite (`node regression-suite.mjs`).
