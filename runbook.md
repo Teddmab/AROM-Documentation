@@ -111,6 +111,32 @@ rm key.json
 List and revoke old keys with `gcloud iam service-accounts keys list
 --iam-account=arom-ci-deploy@arom-production.iam.gserviceaccount.com`.
 
+## Enabling Google / Facebook sign-in
+
+App code never sees a client ID/secret for either — the whole OAuth
+handshake is configured in the Firebase console and Firebase's own
+backend handles it. This only needs doing once per Firebase project.
+
+**Google:** Firebase console → `arom-production` → Authentication →
+Sign-in method → Google → Enable → set a support email → Save. Nothing
+else required — no external app registration.
+
+**Facebook:**
+1. Create an app at [developers.facebook.com](https://developers.facebook.com)
+   (or use an existing one) and add the **Facebook Login** product to it.
+2. Firebase console → Authentication → Sign-in method → Facebook →
+   Enable → paste the app's **App ID** and **App Secret** → Save. Firebase
+   shows an OAuth redirect URI
+   (`https://arom-production.firebaseapp.com/__/auth/handler`).
+3. Paste that URI into the Meta app's Facebook Login → Settings →
+   **Valid OAuth Redirect URIs**.
+4. The Meta app needs to be in **Live** mode (not just Development) for
+   accounts other than the app's own testers/admins to be able to sign in.
+
+Local dev against the emulator needs none of this — the Auth emulator
+has its own mock IdP flow (an "Auto-generate user information" button in
+the popup) that works without any real Google/Facebook account.
+
 ## If Firebase Auth needs to be re-enabled on a new project
 
 Enabling Auth (Identity Platform) required linking a GCP billing account

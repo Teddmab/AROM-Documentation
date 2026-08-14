@@ -36,3 +36,4 @@ restarted per milestone.
 | 07 | [Storefront order tracking](07-storefront-order-tracking.md) | Todo |
 | 08 | [PawaPay mobile money (stub)](08-pawapay-payment-stub.md) | Todo |
 | 09 | [Invite-link admin/staff signup](09-invite-link-admin-staff-signup.md) | Done |
+| 10 | [Google/Facebook/email login](10-oauth-google-facebook-login.md) | Done |
