@@ -28,6 +28,15 @@ individual, PR-sized sprints.
   for how a pure `firestore.rules` cross-document check does the whole
   job. See
   [Teddmab/AROM-Production#7](https://github.com/Teddmab/AROM-Production/pull/7).
+- **Payment on the storefront** (was #6c below). `/storefront` is now
+  tabbed (Catalogue / Mes commandes) and "Commander" opens a checkout
+  sheet where the partner chooses mobile money (PawaPay, stubbed — no
+  real credentials yet) or cash on delivery; the order→`ventes` bridge
+  now writes the real paid amount instead of a hardcoded `encaisse: 0`.
+  Server-side webhook confirmation is still deferred (needs Cloud
+  Functions, see #10 below). See
+  [sprints/08](sprints/08-pawapay-payment-stub.md) and
+  [data-model.md](data-model.md#payment-sprint-08-stub-phase).
 
 ## Security & correctness
 
@@ -58,11 +67,6 @@ individual, PR-sized sprints.
    [flows.md](flows.md#how-data-circulates-today).
 6b. **No promo banner.** Admin has no way to surface a promotion on
    `/storefront` — doesn't exist in any form yet.
-6c. **No payment on the storefront.** Orders go straight from
-   pending → confirmed → fulfilled with no payment concept; the
-   order→`ventes` bridge always writes `encaisse: 0`. PawaPay mobile
-   money plan (coexisting with the manual/cash flow) is in
-   [flows.md](flows.md#payment--pawapay-mobile-money).
 6d. **`clients` (internal registry) and `users` (partner accounts) are
    disconnected systems** — a storefront order never creates a `clients`
    doc, and `ventes.idClient` is free text, not a foreign key. Not
