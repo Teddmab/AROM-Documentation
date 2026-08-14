@@ -125,6 +125,28 @@ new region, disaster recovery):
 
 ## Frontend deploys
 
-Nothing to do — Lovable deploys `AROM-Production` to Cloudflare Workers on
-every push to the connected branch automatically. GitHub Actions CI on
-that repo is verification-only (lint/typecheck/build); it does not deploy.
+**As of 2026-08-14, nothing deploys `AROM-Production` automatically.**
+Lovable's own pipeline used to (on every push to the connected branch);
+the project has since been disconnected from Lovable, on both Lovable's
+dashboard and in the codebase (see
+[architecture.md](architecture.md#update-2026-08-14-lovable-removed)).
+GitHub Actions CI on that repo remains verification-only
+(lint/typecheck/build); it still does not deploy.
+
+An independent Cloudflare Workers deploy pipeline is the planned
+replacement, not yet set up. It needs:
+
+1. A Cloudflare API token (Workers Scripts: Edit permission) and
+   Account ID, from whoever owns the Cloudflare account this should
+   deploy under.
+2. A `wrangler.json`/`wrangler.toml` pinning a stable Worker name
+   (`vite build` currently falls back to an auto-generated name –
+   `teddmab-arom-production` — when none is committed, which works but
+   isn't a name to depend on staying stable across machines).
+3. A GitHub Actions workflow (`CLOUDFLARE_API_TOKEN` /
+   `CLOUDFLARE_ACCOUNT_ID` repo secrets, `wrangler deploy` on push to
+   `main`), mirroring how `AROM-Backend/.github/workflows/deploy-rules.yml`
+   already deploys Firestore/Storage rules.
+
+Until this is in place, a manual deploy from a machine with `wrangler`
+authenticated works: `bun run build && npx wrangler deploy`.
