@@ -102,3 +102,54 @@ individual, PR-sized sprints.
     (needs a Cloudflare API token + account ID), merging a PR here does
     not update the live site. See
     [runbook.md](runbook.md#frontend-deploys) for exactly what's needed.
+
+## From the 2026-08-14 kickoff meeting (client: Ethical Mine)
+
+Client walkthrough of the current build. Two things confirmed as
+already satisfying what was asked for, two new asks captured as
+sprints, and a longer-term vision worth recording so it isn't lost.
+
+**Already satisfied by shipped/in-review work:**
+- "Améliorer commandes" (better order management, visible delivery
+  status/date) — this is exactly [sprints/07](sprints/07-storefront-order-tracking.md)
+  and [sprints/14](sprints/14-storefront-self-service.md)'s order detail
+  sheet, both in review as of this meeting.
+- Google/Facebook login, new boutiques landing on the catalog after
+  signup, separate catalog/orders views — all already shipped
+  (sprint 10, and the catalogue/orders tabs work).
+
+**New asks, captured as sprints:**
+- [sprints/15](sprints/15-whatsapp-notifications.md) — WhatsApp
+  notifications on order confirm/fulfill.
+- [sprints/16](sprints/16-boutique-verification.md) — a simple,
+  human-in-the-loop ("phone call") verification flag for new boutiques,
+  distinct from and in addition to the KYC *data collection* sprint 13
+  already shipped.
+
+**"Mise en ligne" (go live)** is sprint 12 — the Cloudflare Workers
+pipeline is built and waiting on the client to provide
+`CLOUDFLARE_API_TOKEN`/`CLOUDFLARE_ACCOUNT_ID`. Worth flagging back to
+the client directly since they asked for this as a next step and it's
+blocked on them, not on build work.
+
+**Longer-term vision (explicitly "nice to have," not scheduled):**
+- **Approvisionnement → Mombongo integration.** Link AROM's supply data
+  to a Mombongo administrator account so the ~25 partner
+  plantations' data syncs automatically instead of manual entry, with
+  an "import" counterpart to the existing ERP export (import from
+  Excel, from Mombongo, or from Agroconnect). The client was explicit
+  this depends on Mombongo's own maturity and AROM's own process
+  simplification first — "pas pour tout de suite."
+- **Auto-populate production from approvisionnement.** Today both are
+  filled by hand; quantities already entered at the approvisionnement
+  step could pre-fill the matching production entry. Mentioned as
+  something already being investigated (data-schema study), not yet a
+  committed design.
+- **Agroconnect integration**, positioned as helping other juice
+  producers ("transformateurs") source raw pineapples, not something
+  AROM itself needs directly.
+- **Geographic expansion** (Kinshasa, Lubumbashi, then possibly Rwanda,
+  Tanzania) — the underlying reason the Mombongo/Agroconnect
+  integrations matter at all: the same approvisionnement flow should
+  work for a new AROM location finding new suppliers in a new region,
+  not just Kasaï. No scope or timeline attached yet.

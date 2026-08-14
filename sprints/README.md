@@ -39,3 +39,7 @@ restarted per milestone.
 | 10 | Google/Facebook/email login | Done — see [#6](https://github.com/Teddmab/AROM-Documentation/pull/6) |
 | 11 | [Remove Lovable dependency](11-remove-lovable-dependency.md) | Done |
 | 12 | [Cloudflare deploy pipeline](12-cloudflare-deploy-pipeline.md) | Todo — blocked on Cloudflare credentials |
+| 13 | Guided boutique onboarding | Done — see companion PR |
+| 14 | Storefront self-service: profile, order & product detail | Done — see companion PR |
+| 15 | [WhatsApp order notifications](15-whatsapp-notifications.md) | Todo — from 2026-08-14 kickoff |
+| 16 | [Boutique verification (call-confirmation KYC)](16-boutique-verification.md) | Todo — from 2026-08-14 kickoff |
