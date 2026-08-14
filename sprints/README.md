@@ -39,3 +39,4 @@ restarted per milestone.
 | 10 | [Google/Facebook/email login](10-oauth-google-facebook-login.md) | Done |
 | 11 | [Remove Lovable dependency](11-remove-lovable-dependency.md) | Done |
 | 12 | [Cloudflare deploy pipeline](12-cloudflare-deploy-pipeline.md) | Pipeline built — blocked on Cloudflare credentials |
+| 13 | [Guided boutique onboarding](13-guided-boutique-onboarding.md) | Done |

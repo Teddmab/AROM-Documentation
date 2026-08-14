@@ -121,3 +121,10 @@ catalog is shared but never editable by a partner.
   by rule) — the dashboard's invite list has a button for this. Once used,
   an invite can't be revoked or reused; deactivate the resulting account
   instead, same as any other.
+- **`onboardingComplete` (partner-only, sprint 13)** is a separate axis
+  from `active` — it tracks whether the guided onboarding wizard
+  (contact/address/KYC fields) has been finished, not whether the
+  account is enabled. A partner with `onboardingComplete: false` is
+  still `active` and can sign back in, but is redirected to
+  `/storefront/signup` to finish instead of reaching the catalog. See
+  [data-model.md](data-model.md#guided-boutique-onboarding-sprint-13).
