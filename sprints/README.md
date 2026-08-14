@@ -31,7 +31,7 @@ restarted per milestone.
 | 02 | [iOS-style redesign & branding](02-ios-redesign-branding.md) | Done |
 | 03 | [Bug fixes, responsive audit, landing animations](03-bugfixes-responsive-animations.md) | Done |
 | 04 | [Account-lockout & signup session fix](04-account-lockout-fix.md) | Done |
-| 05 | [Admin catalog management](05-admin-catalog-management.md) | Todo |
+| 05 | [Admin catalog management](05-admin-catalog-management.md) | Done |
 | 06 | [Promo banner](06-promo-banner.md) | Todo |
 | 07 | [Storefront order tracking](07-storefront-order-tracking.md) | Todo |
 | 08 | [PawaPay mobile money (stub)](08-pawapay-payment-stub.md) | Todo |
