@@ -1,6 +1,6 @@
 # Sprint 08 — PawaPay mobile money (stub)
 
-**Status:** Todo
+**Status:** Done
 
 **Rôle concerné :** Partenaire (paie) / Admin (rapproche)
 **Page / zone :** Storefront checkout, Dashboard — Commercialisation
@@ -17,16 +17,28 @@ the practical payment rail.
 The architecture from [flows.md](../flows.md#payment--pawapay-mobile-money),
 built against a stub (no real PawaPay credentials yet):
 
-- A `/api/pawapay/initiate` server route (Nitro, same pattern as the
-  existing `[.mcp]` server routes) holding the API token server-side.
-- A status-check proxy route the browser polls.
-- At checkout, the partner chooses "Payer par mobile money" or "Payer à
-  la livraison" (today's unchanged manual flow).
-- `orders.payment` sub-object tracks method/status/depositId/provider/amount.
-- On `COMPLETED`, the browser writes the payment status to its own order
-  (client-side polling — see decision below) and the order→`ventes`
-  bridge (sprint 01) uses the real paid amount for `encaisse` instead of
-  the hardcoded `0`.
+- Two TanStack Start server functions (`createServerFn`, in
+  `AROM-Production/src/lib/payments/pawapay.ts`) hold the API token
+  server-side — not a Nitro `/api` route as originally sketched, since
+  the `[.mcp]` server-route pattern this sprint was meant to follow was
+  removed in the Lovable-dependency cleanup (sprint 11). `createServerFn`
+  gives the same guarantee (handler code never ships to the browser)
+  with less boilerplate.
+- The storefront (`AROM-Production/src/routes/storefront/index.tsx`) is
+  reorganized into two tabs — Catalogue and Mes commandes — and
+  "Commander" opens a checkout sheet
+  (`AROM-Production/src/components/storefront/CheckoutSheet.tsx`)
+  instead of placing the order directly.
+- At checkout, the partner chooses "Mobile money" or "Paiement à la
+  livraison" (today's unchanged manual flow, renamed for clarity).
+- `orders.payment` sub-object tracks method/status/depositId/provider/amount
+  — see [data-model.md](../data-model.md#payment-sprint-08-stub-phase).
+- The order document is only created after the outcome is known: cash on
+  delivery creates immediately (`status: "pending"`), mobile money polls
+  until `COMPLETED` before creating the order at all. This means no
+  `firestore.rules` changes were needed — see decisions below.
+- The order→`ventes` bridge (sprint 01) now uses the real paid amount
+  for `encaisse` instead of the hardcoded `0`.
 
 ## Hors périmètre
 
@@ -53,21 +65,27 @@ shapes; swapping in real credentials should need no rework.
 ## Contraintes
 
 Same as sprint 05. The PawaPay Bearer token must never reach the
-browser — this is the reason the server route exists at all, not an
+browser — this is the reason the server functions exist at all, not an
 optional hardening step.
 
 ## Livrable
 
-`AROM-Production` (server routes, storefront checkout UI, dashboard
-payment status display). `AROM-Documentation` (data-model.md: `orders.payment`
-shape; flows.md updated once real sandbox credentials are in and the
-stub is swapped out).
+`AROM-Production` (server functions, storefront tabs + checkout UI,
+dashboard payment status display). `AROM-Documentation` (data-model.md:
+`orders.payment` shape; flows.md updated once real sandbox credentials
+are in and the stub is swapped out).
 
 ## Test de fumée
 
-- [ ] Partner places an order, chooses "Payer par mobile money"
-- [ ] Stub returns `ACCEPTED`, then (simulated) `COMPLETED`
-- [ ] Order shows "Payé" on the partner's storefront view
-- [ ] Admin fulfills — the resulting `ventes` row has the real paid
+- [x] Partner places an order, chooses "Mobile money"
+- [x] Stub returns `ACCEPTED`, then (via client-side polling) `COMPLETED`
+- [x] Order shows "Payé par mobile money" on the partner's storefront
+      "Mes commandes" tab
+- [x] Admin fulfills — the resulting `ventes` row has the real paid
       amount in `encaisse`, not `0`
-- [ ] Choosing "Payer à la livraison" still works exactly as it does today
+- [x] Choosing "Paiement à la livraison" still works, order created
+      immediately with `status: "pending"`
+
+Covered by the automated regression suite (`node regression-suite.mjs`),
+extended in this sprint with cash-on-delivery and mobile-money checkout
+cases — 12/12 passing.
