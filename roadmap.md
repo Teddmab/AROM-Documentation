@@ -28,6 +28,14 @@ individual, PR-sized sprints.
   for how a pure `firestore.rules` cross-document check does the whole
   job. See
   [Teddmab/AROM-Production#7](https://github.com/Teddmab/AROM-Production/pull/7).
+- **Guided boutique onboarding.** `/storefront/signup` was a three-field
+  form with no phone, address, or verification info — not enough to
+  actually deliver to or vet a new boutique. Now a 5-step wizard
+  collects contact info, a structured delivery address, and an optional
+  KYC field, and denormalizes phone/address onto each order so the
+  dashboard shows what's needed to fulfill it. See
+  [sprints/13](sprints/13-guided-boutique-onboarding.md) and
+  [data-model.md](data-model.md#guided-boutique-onboarding-sprint-13).
 - **Payment on the storefront** (was #6c below). `/storefront` is now
   tabbed (Catalogue / Mes commandes) and "Commander" opens a checkout
   sheet where the partner chooses mobile money (PawaPay, stubbed — no
