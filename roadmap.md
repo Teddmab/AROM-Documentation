@@ -19,6 +19,12 @@ individual, PR-sized sprints.
   a deactivated partner hit a dead-end "Redirection…" screen with no
   explanation. See
   [Teddmab/AROM-Production#5](https://github.com/Teddmab/AROM-Production/pull/5).
+- **Invite-link admin/staff signup** (part of #7 below). Turned out not
+  to need the Cloud Functions decision it was originally scoped
+  against — see [rbac.md](rbac.md#how-adminstaff-accounts-are-provisioned)
+  for how a pure `firestore.rules` cross-document check does the whole
+  job. See
+  [Teddmab/AROM-Production#7](https://github.com/Teddmab/AROM-Production/pull/7).
 
 ## Security & correctness
 
@@ -58,12 +64,12 @@ individual, PR-sized sprints.
    disconnected systems** — a storefront order never creates a `clients`
    doc, and `ventes.idClient` is free text, not a foreign key. Not
    urgent at current scale; worth knowing before it isn't.
-7. **No admin UI for account management.** Roles/menus are managed via
-   CLI scripts (`AROM-Backend/scripts/`) — fine for a small team, but a
-   "Personnel" admin screen (list/deactivate/change role) would remove the
-   need to touch the CLI for routine changes. Natural to pair with an
-   invite-link signup flow, which needs the same Cloud Functions decision
-   as the PawaPay webhook upgrade — see [flows.md](flows.md#architecture).
+7. **No admin UI for *managing* existing accounts.** *Creating* an
+   admin/staff account no longer needs the CLI (invite-link signup, see
+   Done above) — but listing accounts, deactivating one, or changing a
+   role still does (`AROM-Backend/scripts/list-users.mjs` + a manual
+   Firestore console edit). A "Personnel" admin screen for that would
+   close the loop.
 8. **`reset()` in the ERP store is now a no-op** (with a toast pointing to
    admin scripts) rather than actually clearing data — intentional, since
    the old "reset to seed" behavior would have wiped shared, live
@@ -78,11 +84,13 @@ individual, PR-sized sprints.
    alert is configured. Set one in the GCP console
    (Billing → Budgets & alerts) — cheap insurance given usage should be
    ~$0 at this scale.
-10. **Cloud Functions** would let account provisioning (custom claims,
-    welcome emails) and order notifications happen server-side instead of
-    via manually-run scripts — deliberately deferred since it wasn't
-    needed for a working v1 and keeps the project off any Functions-related
-    billing surface until it's actually wanted.
+10. **Cloud Functions** would let things that genuinely need server
+    compute — welcome/notification emails, the PawaPay webhook upgrade
+    (see [flows.md](flows.md#architecture)) — happen without a manually-run
+    script. (Account provisioning turned out *not* to need this — see
+    invite-link signup in Done above.) Deliberately deferred since it
+    wasn't needed for a working v1 and keeps the project off any
+    Functions-related billing surface until it's actually wanted.
 11. **Frontend deploy path is entirely owned by Lovable.** If AROM ever
     needs a deploy pipeline independent of Lovable (e.g. a Cloudflare API
     token in `AROM-Production`'s own CI), that's a deliberate decision to
