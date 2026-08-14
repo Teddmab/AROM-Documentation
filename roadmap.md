@@ -3,7 +3,9 @@
 Roughly in priority order.
 
 See [flows.md](flows.md) for the role-by-role, page-by-page flow map this
-roadmap is scoped against, and the PawaPay payment plan.
+roadmap is scoped against and the PawaPay payment plan, and
+[sprints/v1-mvp.md](sprints/v1-mvp.md) for that flow broken into
+individual, PR-sized sprints.
 
 ## Done
 

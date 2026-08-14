@@ -1,0 +1,37 @@
+# Sprints
+
+One file per sprint, one sprint per role + one page/flow — that scoping
+rule is deliberate (see [flows.md](../flows.md)): it's what makes the
+sequence converge on a complete, working path for each role through each
+part of AROM, instead of a pile of disconnected fixes.
+
+Every sprint file follows the same shape (the same fields the
+[Sprint Brief generator](https://claude.ai/code/artifact/0a6920c5-dd67-449c-a168-8fed9eea354a)
+produces, so a file here can be copy-pasted straight into it to regenerate
+the prompt, or a freshly generated prompt can be dropped in here as a new
+file once the sprint is planned):
+
+- **Role & page** — who this is for, where it lives
+- **Why now** — the real motivation
+- **In scope / Out of scope**
+- **Decisions already locked** — not up for relitigating
+- **Constraints**
+- **Deliverable** — which repo(s), roughly which files
+- **Smoke test** — always present, always last
+
+Sprints are grouped into milestones. The first one is
+[v1-mvp.md](v1-mvp.md) — the complete commerce loop (admin publishes →
+partner orders → partner pays → admin fulfills) working end to end for
+every role. Numbering is chronological across the whole project, not
+restarted per milestone.
+
+| # | Sprint | Status |
+| --- | --- | --- |
+| 01 | [Order → ventes bridge](01-order-ventes-bridge.md) | Done |
+| 02 | [iOS-style redesign & branding](02-ios-redesign-branding.md) | Done |
+| 03 | [Bug fixes, responsive audit, landing animations](03-bugfixes-responsive-animations.md) | Done |
+| 04 | [Account-lockout & signup session fix](04-account-lockout-fix.md) | Done |
+| 05 | [Admin catalog management](05-admin-catalog-management.md) | Todo |
+| 06 | [Promo banner](06-promo-banner.md) | Todo |
+| 07 | [Storefront order tracking](07-storefront-order-tracking.md) | Todo |
+| 08 | [PawaPay mobile money (stub)](08-pawapay-payment-stub.md) | Todo |
