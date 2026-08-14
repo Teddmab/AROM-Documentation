@@ -19,12 +19,24 @@ individual, PR-sized sprints.
   a deactivated partner hit a dead-end "Redirection…" screen with no
   explanation. See
   [Teddmab/AROM-Production#5](https://github.com/Teddmab/AROM-Production/pull/5).
+- **Removed all Lovable coupling from `AROM-Production`.** See
+  [architecture.md](architecture.md#update-2026-08-14-lovable-removed) —
+  this is what makes #11 below urgent rather than hypothetical.
 - **Invite-link admin/staff signup** (part of #7 below). Turned out not
   to need the Cloud Functions decision it was originally scoped
   against — see [rbac.md](rbac.md#how-adminstaff-accounts-are-provisioned)
   for how a pure `firestore.rules` cross-document check does the whole
   job. See
   [Teddmab/AROM-Production#7](https://github.com/Teddmab/AROM-Production/pull/7).
+- **Payment on the storefront** (was #6c below). `/storefront` is now
+  tabbed (Catalogue / Mes commandes) and "Commander" opens a checkout
+  sheet where the partner chooses mobile money (PawaPay, stubbed — no
+  real credentials yet) or cash on delivery; the order→`ventes` bridge
+  now writes the real paid amount instead of a hardcoded `encaisse: 0`.
+  Server-side webhook confirmation is still deferred (needs Cloud
+  Functions, see #10 below). See
+  [sprints/08](sprints/08-pawapay-payment-stub.md) and
+  [data-model.md](data-model.md#payment-sprint-08-stub-phase).
 
 ## Security & correctness
 
@@ -55,11 +67,6 @@ individual, PR-sized sprints.
    [flows.md](flows.md#how-data-circulates-today).
 6b. **No promo banner.** Admin has no way to surface a promotion on
    `/storefront` — doesn't exist in any form yet.
-6c. **No payment on the storefront.** Orders go straight from
-   pending → confirmed → fulfilled with no payment concept; the
-   order→`ventes` bridge always writes `encaisse: 0`. PawaPay mobile
-   money plan (coexisting with the manual/cash flow) is in
-   [flows.md](flows.md#payment--pawapay-mobile-money).
 6d. **`clients` (internal registry) and `users` (partner accounts) are
    disconnected systems** — a storefront order never creates a `clients`
    doc, and `ventes.idClient` is free text, not a foreign key. Not
@@ -91,8 +98,12 @@ individual, PR-sized sprints.
     invite-link signup in Done above.) Deliberately deferred since it
     wasn't needed for a working v1 and keeps the project off any
     Functions-related billing surface until it's actually wanted.
-11. **Frontend deploy path is entirely owned by Lovable.** If AROM ever
-    needs a deploy pipeline independent of Lovable (e.g. a Cloudflare API
-    token in `AROM-Production`'s own CI), that's a deliberate decision to
-    make, not something to bolt on silently — see
-    [architecture.md](architecture.md#5-cicd).
+11. **Nothing currently deploys `AROM-Production`.** Was entirely owned by
+    Lovable's pipeline; the project has been disconnected from Lovable
+    (2026-08-14, see [architecture.md](architecture.md#update-2026-08-14-lovable-removed)).
+    An independent Cloudflare Workers pipeline is now built (sprint 12,
+    [Teddmab/AROM-Production#11](https://github.com/Teddmab/AROM-Production/pull/11))
+    but not yet live — it needs `CLOUDFLARE_API_TOKEN` and
+    `CLOUDFLARE_ACCOUNT_ID` as GitHub repo secrets before pushes to
+    `main` actually deploy. See
+    [runbook.md](runbook.md#frontend-deploys) for exactly what's needed.

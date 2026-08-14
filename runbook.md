@@ -151,6 +151,43 @@ new region, disaster recovery):
 
 ## Frontend deploys
 
-Nothing to do — Lovable deploys `AROM-Production` to Cloudflare Workers on
-every push to the connected branch automatically. GitHub Actions CI on
-that repo is verification-only (lint/typecheck/build); it does not deploy.
+**As of 2026-08-14, `AROM-Production` still isn't deploying
+automatically, but the pipeline is built and waiting on credentials.**
+Lovable's own pipeline used to deploy it (on every push to the connected
+branch); the project has since been disconnected from Lovable, on both
+Lovable's dashboard and in the codebase (see
+[architecture.md](architecture.md#update-2026-08-14-lovable-removed)).
+
+A `deploy` job now exists in `AROM-Production/.github/workflows/ci.yml`
+(sprint 12) — it runs after `verify` passes, only on push to `main`, and
+does `bun run build` + `wrangler deploy` via `cloudflare/wrangler-action`.
+A root `wrangler.jsonc` pins the Worker name to `arom-production` (Nitro
+merges it into the `wrangler.json` it generates at build time, so this
+no longer falls back to an auto-generated name).
+
+**Important — this is Cloudflare Workers, not Cloudflare Pages.** Nitro's
+`cloudflare-module` preset outputs a Workers entrypoint + `wrangler.json`,
+which Pages' generic "build command + output directory" git-integration
+flow doesn't understand (would deploy a static shell with no SSR — the
+dashboard, storefront auth, and PawaPay server functions would all
+break). If setting this up from the Cloudflare dashboard rather than the
+GitHub Actions workflow, use "Workers Builds," not "Pages."
+
+The only thing missing before pushes to `main` actually deploy: two
+GitHub repo secrets, from whoever owns the Cloudflare account this
+should deploy under —
+
+1. `CLOUDFLARE_API_TOKEN` — scoped to "Edit Cloudflare Workers" (the
+   Cloudflare dashboard's own token-creation template covers this).
+2. `CLOUDFLARE_ACCOUNT_ID` — visible on the right sidebar of any
+   Cloudflare dashboard page.
+
+Add both under `AROM-Production` → Settings → Secrets and variables →
+Actions. The next push to `main` after that deploys automatically; no
+further setup needed.
+
+Until then, a manual deploy from a machine with `wrangler` authenticated
+still works: `bun run build && cd .output/server && npx wrangler deploy`
+— the deploy has to run from `.output/server` (where Nitro writes the
+generated `wrangler.json` with the real `main`/`assets` paths), not repo
+root, where only the name-pinning `wrangler.jsonc` lives.
