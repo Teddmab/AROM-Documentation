@@ -31,14 +31,86 @@ of that is stored.
 
 | Collection | Fields | Notes |
 | --- | --- | --- |
-| `users/{uid}` | `email`, `displayName`, `role` (`admin`\|`staff`\|`partner`), `menus` (`"all"` or `string[]`), `active`, `createdAt`, `inviteId?` | `uid` matches the Firebase Auth UID. `inviteId` is only present on admin/staff accounts created via `/join` (see `invites` below); an audit trail, not read by any rule |
+| `users/{uid}` | `email`, `displayName`, `role` (`admin`\|`staff`\|`partner`), `menus` (`"all"` or `string[]`), `active`, `createdAt`, `inviteId?`, `onboardingComplete?`, `contactName?`, `phone?`, `address? {ville, commune, quartier, repere?}`, `idNumber?`, `pointDeVente?` | `uid` matches the Firebase Auth UID. `inviteId` is only present on admin/staff accounts created via `/join` (see `invites` below); an audit trail, not read by any rule. The `onboardingComplete` through `pointDeVente` fields are partner-only, written by the guided onboarding wizard — see below |
 | `invites/{id}` | `email`, `role` (`admin`\|`staff`), `menus` (`"all"` or `string[]`), `used`, `usedBy?`, `createdBy`, `createdAt` | Lets an admin grant admin/staff access without the CLI — see [rbac.md](rbac.md#how-adminstaff-accounts-are-provisioned). Single-use, email-locked; doc ID is the actual secret (get-by-ID is public, listing is admin-only) |
 | `products/{id}` | `name`, `format`, `price`, `active`, `imageUrl?`, `description?` | Storefront catalog; seeded with the three bottle formats from `parametres`. `imageUrl` is optional (nullable) — populated by uploading a photo in the dashboard's Catalogue card, which stores it in Storage at `products/{id}/photo` and writes the resulting download URL here. Fully admin/staff-manageable from the dashboard as of [sprints/05](sprints/05-admin-catalog-management.md) — not just seed-script-only anymore. `description` (sprint 14) is free text shown on the storefront's product detail sheet — no structured attributes (ingredients, nutrition) yet |
-| `orders/{id}` | `partnerId`, `partnerName`, `items: {productId, name, quantity, unitPrice, format}[]`, `total`, `status` (`pending`\|`confirmed`\|`fulfilled`\|`cancelled`), `createdAt`, `deliveryDate?`, `fulfilledAt?` | One doc per storefront order. `format` is a snapshot of the product's format at order time (not a live join), matching how `name`/`unitPrice` are already snapshotted. `deliveryDate` (sprint 07) is set by hand by admin when confirming an order — ad-hoc, not a recurring schedule. `fulfilledAt` (sprint 07) is stamped automatically when an order is marked "livrée," so the storefront can show a real date instead of just the status |
+| `orders/{id}` | `partnerId`, `partnerName`, `partnerPhone?`, `partnerAddress?`, `items: {productId, name, quantity, unitPrice, format}[]`, `total`, `status` (`pending`\|`confirmed`\|`fulfilled`\|`cancelled`), `createdAt`, `deliveryDate?`, `fulfilledAt?`, `payment: {method, status, ...}` | One doc per storefront order. `format` is a snapshot of the product's format at order time (not a live join), matching how `name`/`unitPrice` are already snapshotted. `partnerPhone`/`partnerAddress` are likewise a snapshot of the partner's profile at order time (a single formatted string for the address, not the structured object) — see below. `deliveryDate` (sprint 07) is set by hand by admin when confirming an order — ad-hoc, not a recurring schedule. `fulfilledAt` (sprint 07) is stamped automatically when an order is marked "livrée," so the storefront can show a real date instead of just the status. `payment` is written once at order creation and never mutated afterward — see below |
 | `config/promo` | `active: boolean`, `headline: string`, `description?: string`, `productId?: string`, `startDate?: string`, `endDate?: string` | Single active-or-not storefront promo (sprint 06) — no rotation/multiple-banner queue. Shown on `/storefront` when `active` and (if set) within `startDate`/`endDate`. Admin-only write, but **signed-in read** (unlike `config/parametres`, which is admin/staff-only) — see [rbac.md](rbac.md) and the `config/promo` exact-path rule ahead of the `config/{doc}` wildcard in `firestore.rules` |
 
 `firestore.indexes.json` defines a composite index on
 `orders(partnerId ASC, createdAt DESC)` for the "my orders" query.
+
+## Guided boutique onboarding (sprint 13)
+
+`/storefront/signup` (`AROM-Production/src/routes/storefront/signup.tsx`)
+is a 5-step wizard rather than a single form, so a non-technical partner
+is walked through it one question at a time:
+
+1. **Compte** — business name, email/password (or Google/Facebook OAuth).
+2. **Contact** — `contactName` (the person to call), `phone`.
+3. **Localisation** — structured `address`: `ville` (dropdown of known
+   Kasaï-region towns + "Autre" free text), `commune`, `quartier`, and an
+   optional `repere` (landmark) — DRC addresses commonly lack formal
+   street addressing, so this is deliberately not a single free-text field.
+4. **Identification** — optional `idNumber` (CNI or RCCM), light-touch
+   KYC. Explicitly not a document-upload + admin-review flow (out of
+   scope for this sprint) — no new Storage rules were needed.
+5. **Résumé** — review screen, shows the depot the boutique will be
+   served from, then writes everything in one `completePartnerOnboarding`
+   call.
+
+**Two-write account creation.** Step 1 creates the Firebase Auth account
+and an immediate `users/{uid}` doc with `onboardingComplete: false` (via
+`signUpPartner`/`signUpPartnerWithProvider` — unchanged from before this
+sprint except for that one field). Steps 2–4 are held in local component
+state, not written per-step. Step 5's `completePartnerOnboarding` does
+one `updateDoc` with everything collected plus `onboardingComplete: true`
+and `pointDeVente`. This two-write shape (not five) exists specifically
+to avoid the alternative of a signed-in Auth account with **no**
+`users/{uid}` doc at all if someone abandons the wizard early —
+`RequireRole` treats that state as "Accès indisponible", a dead end that
+signs the user out. A doc always exists from the end of step 1 onward,
+so an abandoned wizard is resumable: returning to `/storefront/signup`
+(or reaching `/storefront` directly, which redirects back) picks up at
+step 2 with `displayName`/`email` already known.
+
+**No `firestore.rules` change needed.** The existing partner
+self-`update` rule only constrains `role` from changing — it doesn't
+enumerate field keys — so writing these new fields to a partner's own
+doc needed no rules change, matching how sprint 08's `orders.payment`
+needed none either.
+
+**Point of sale (stub).** AROM currently delivers from a single point of
+sale. Rather than a `pointsDeVente` collection with commune→depot
+matching logic for exactly one entry, `pointDeVente` is a constant
+(`AROM_DEPOT_NAME` in `AROM-Production/src/lib/storefront/depot.ts`)
+written onto the partner's profile at onboarding. Replace this with a
+real collection + lookup when AROM adds a second delivery point.
+
+## Payment (sprint 08, stub phase)
+
+`orders.payment` is one of:
+
+- `{ method: "cash_on_delivery", status: "pending" }` — set at order
+  creation, unchanged until the order is marked "livrée" (see below).
+- `{ method: "pawapay", status: "completed", depositId, provider, amount, currency: "CDF", updatedAt }`
+  — the order document is **only ever written after** the PawaPay
+  deposit reaches `COMPLETED`; there is no `orders` doc for a deposit
+  that's still pending or that failed. This is why `firestore.rules`
+  needed no changes for this sprint — the order is always written once,
+  fully formed, same as before.
+
+The checkout flow (`AROM-Production/src/components/storefront/CheckoutSheet.tsx`)
+calls two TanStack Start server functions in
+`AROM-Production/src/lib/payments/pawapay.ts` — `initiatePawapayDeposit`
+and `checkPawapayDepositStatus` — which currently stub PawaPay's real v2
+API shape rather than calling `api.sandbox.pawapay.io`, since no
+credentials exist yet. The client polls `checkPawapayDepositStatus` a
+few times with a delay between calls (client-side polling, not a
+webhook — see [flows.md](flows.md#payment--pawapay-mobile-money) for why).
+Swapping the stub bodies for real `fetch()` calls with a server-only
+Bearer token is the only change needed once credentials exist; nothing
+about the client flow or the `orders.payment` shape changes.
 
 ## Order → ventes bridge
 
@@ -55,16 +127,16 @@ the conversion (e.g. a retried click) overwrites the same doc instead of
 duplicating it — `setDoc`, not `addDoc`. Conventions for the generated
 row: `canal` is always `"Grossiste"` (distinguishes partner/storefront
 sales from the channels used by manually-entered ventes), `commerciale`
-is `"Boutique partenaire"`, and `encaisse` is `0` — storefront orders
-aren't a checkout (see [architecture.md](architecture.md)), so payment
-status is reconciled manually afterward in the ventes journal like any
-other credit sale.
+is `"Boutique partenaire"`. As of [sprints/08](sprints/08-pawapay-payment-stub.md),
+`encaisse` reflects the order's `payment`: the full line amount when
+`payment` is set (a PawaPay deposit is only ever `completed` by the time
+the order exists at all, and cash on delivery is collected at the exact
+moment the order is marked "livrée"), or `0` for pre-sprint-08 orders
+that predate the `payment` field, where nothing can be assumed about
+whether cash changed hands.
 
 ## What's intentionally not modeled yet
 
-- No payment fields on `orders` yet — see
-  [flows.md](flows.md#payment--pawapay-mobile-money) for the proposed
-  `payment` sub-object.
 - No editable delivery date after confirm (sprint 07) — set once at
   confirm time, no later edit path.
 - No multiple product photos or structured attributes (sprint 14) — one
