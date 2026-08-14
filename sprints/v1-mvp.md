@@ -28,13 +28,15 @@ the milestone where it stops being a diagram and starts being true.
 **Explicitly out of v1** — real gaps, deliberately not blocking this
 milestone (see [roadmap.md](../roadmap.md) for the full backlog):
 
-- Admin/staff invite-link signup (still CLI-only) — account
-  *provisioning* isn't part of the commerce loop.
 - Staff per-collection data scoping (`menus` is UI-only today).
 - Fixed/recurring delivery schedule (v1 ships with an ad-hoc delivery
   date the admin sets by hand, per the decision in sprint 07).
 - PawaPay server-side webhook (v1 ships with client-side polling —
   correct on purpose, see sprint 08's "Décisions déjà actées").
+
+Admin/staff invite-link signup ([sprint 09](09-invite-link-admin-staff-signup.md))
+shipped ahead of v1, outside the commerce loop above — it turned out not
+to need the Cloud Functions decision it was originally scoped against.
 
 ## Sprints
 
