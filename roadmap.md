@@ -2,6 +2,9 @@
 
 Roughly in priority order.
 
+See [flows.md](flows.md) for the role-by-role, page-by-page flow map this
+roadmap is scoped against, and the PawaPay payment plan.
+
 ## Done
 
 - **Order fulfillment → `ventes` bridge** (was #5 below). Marking a
@@ -9,6 +12,11 @@ Roughly in priority order.
   now atomically closes the order and writes one `ventes` row per line
   item — storefront sales show up in commercial KPIs immediately. See
   [data-model.md](data-model.md#order--ventes-bridge).
+- **Account-lockout redirect loop.** Deactivating an admin/staff account
+  didn't actually lock them out (infinite `/dashboard ↔ /login` bounce);
+  a deactivated partner hit a dead-end "Redirection…" screen with no
+  explanation. See
+  [Teddmab/AROM-Production#5](https://github.com/Teddmab/AROM-Production/pull/5).
 
 ## Security & correctness
 
@@ -31,12 +39,29 @@ Roughly in priority order.
 
 ## Product
 
-6. **No product photos.** `storage.rules` reserves `products/**`; the
-   catalog UI and `products` docs don't have an image field wired up yet.
+6. **No admin UI for the storefront catalog at all** — not just photos.
+   `products` is only ever written by `AROM-Backend/scripts/seed.mjs` or
+   by hand in the Firestore console; there's no way to add, price,
+   deactivate, or photograph a product from the dashboard, even though
+   `storage.rules` already reserves `products/**` for images. See
+   [flows.md](flows.md#how-data-circulates-today).
+6b. **No promo banner.** Admin has no way to surface a promotion on
+   `/storefront` — doesn't exist in any form yet.
+6c. **No payment on the storefront.** Orders go straight from
+   pending → confirmed → fulfilled with no payment concept; the
+   order→`ventes` bridge always writes `encaisse: 0`. PawaPay mobile
+   money plan (coexisting with the manual/cash flow) is in
+   [flows.md](flows.md#payment--pawapay-mobile-money).
+6d. **`clients` (internal registry) and `users` (partner accounts) are
+   disconnected systems** — a storefront order never creates a `clients`
+   doc, and `ventes.idClient` is free text, not a foreign key. Not
+   urgent at current scale; worth knowing before it isn't.
 7. **No admin UI for account management.** Roles/menus are managed via
    CLI scripts (`AROM-Backend/scripts/`) — fine for a small team, but a
    "Personnel" admin screen (list/deactivate/change role) would remove the
-   need to touch the CLI for routine changes.
+   need to touch the CLI for routine changes. Natural to pair with an
+   invite-link signup flow, which needs the same Cloud Functions decision
+   as the PawaPay webhook upgrade — see [flows.md](flows.md#architecture).
 8. **`reset()` in the ERP store is now a no-op** (with a toast pointing to
    admin scripts) rather than actually clearing data — intentional, since
    the old "reset to seed" behavior would have wiped shared, live
