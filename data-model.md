@@ -32,7 +32,7 @@ of that is stored.
 | Collection | Fields | Notes |
 | --- | --- | --- |
 | `users/{uid}` | `email`, `displayName`, `role` (`admin`\|`staff`\|`partner`), `menus` (`"all"` or `string[]`), `active`, `createdAt` | `uid` matches the Firebase Auth UID |
-| `products/{id}` | `name`, `format`, `price`, `active` | Storefront catalog; seeded with the three bottle formats from `parametres` |
+| `products/{id}` | `name`, `format`, `price`, `active`, `imageUrl?` | Storefront catalog; seeded with the three bottle formats from `parametres`. `imageUrl` is optional (nullable) — populated by uploading a photo in the dashboard's Catalogue card, which stores it in Storage at `products/{id}/photo` and writes the resulting download URL here. Fully admin/staff-manageable from the dashboard as of [sprints/05](sprints/05-admin-catalog-management.md) — not just seed-script-only anymore |
 | `orders/{id}` | `partnerId`, `partnerName`, `items: {productId, name, quantity, unitPrice, format}[]`, `total`, `status` (`pending`\|`confirmed`\|`fulfilled`\|`cancelled`), `createdAt` | One doc per storefront order. `format` is a snapshot of the product's format at order time (not a live join), matching how `name`/`unitPrice` are already snapshotted |
 
 `firestore.indexes.json` defines a composite index on
@@ -60,5 +60,9 @@ other credit sale.
 
 ## What's intentionally not modeled yet
 
-- No product photo field on `products` yet, though `storage.rules`
-  already reserves `products/**` in Storage for this.
+- No promo/banner doc yet — see
+  [sprints/06](sprints/06-promo-banner.md) for the proposed
+  `config/promo` shape.
+- No payment fields on `orders` yet — see
+  [flows.md](flows.md#payment--pawapay-mobile-money) for the proposed
+  `payment` sub-object.
