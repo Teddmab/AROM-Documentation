@@ -32,10 +32,12 @@ restarted per milestone.
 | 03 | [Bug fixes, responsive audit, landing animations](03-bugfixes-responsive-animations.md) | Done |
 | 04 | [Account-lockout & signup session fix](04-account-lockout-fix.md) | Done |
 | 05 | [Admin catalog management](05-admin-catalog-management.md) | Done |
-| 06 | [Promo banner](06-promo-banner.md) | Todo |
-| 07 | [Storefront order tracking](07-storefront-order-tracking.md) | Todo |
+| 06 | [Promo banner](06-promo-banner.md) | Done |
+| 07 | [Storefront order tracking](07-storefront-order-tracking.md) | Done |
 | 08 | [PawaPay mobile money (stub)](08-pawapay-payment-stub.md) | Todo |
 | 09 | [Invite-link admin/staff signup](09-invite-link-admin-staff-signup.md) | Done |
 | 10 | Google/Facebook/email login | Done — see [#6](https://github.com/Teddmab/AROM-Documentation/pull/6) |
 | 11 | [Remove Lovable dependency](11-remove-lovable-dependency.md) | Done |
 | 12 | [Cloudflare deploy pipeline](12-cloudflare-deploy-pipeline.md) | Todo — blocked on Cloudflare credentials |
+| 13 | Guided boutique onboarding | Done — see [Teddmab/AROM-Production#10](https://github.com/Teddmab/AROM-Production/pull/10) |
+| 14 | [Storefront self-service: profile, order & product detail](14-storefront-self-service.md) | Done |
