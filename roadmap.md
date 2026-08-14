@@ -100,9 +100,10 @@ individual, PR-sized sprints.
     Functions-related billing surface until it's actually wanted.
 11. **Nothing currently deploys `AROM-Production`.** Was entirely owned by
     Lovable's pipeline; the project has been disconnected from Lovable
-    (2026-08-14, see [architecture.md](architecture.md#update-2026-08-14-lovable-removed))
-    and no replacement is live yet. This is no longer a someday-maybe
-    item — until an independent Cloudflare Workers pipeline is set up
-    (needs a Cloudflare API token + account ID), merging a PR here does
-    not update the live site. See
+    (2026-08-14, see [architecture.md](architecture.md#update-2026-08-14-lovable-removed)).
+    An independent Cloudflare Workers pipeline is now built (sprint 12,
+    [Teddmab/AROM-Production#11](https://github.com/Teddmab/AROM-Production/pull/11))
+    but not yet live — it needs `CLOUDFLARE_API_TOKEN` and
+    `CLOUDFLARE_ACCOUNT_ID` as GitHub repo secrets before pushes to
+    `main` actually deploy. See
     [runbook.md](runbook.md#frontend-deploys) for exactly what's needed.
