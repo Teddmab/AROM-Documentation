@@ -41,3 +41,5 @@ restarted per milestone.
 | 12 | [Cloudflare deploy pipeline](12-cloudflare-deploy-pipeline.md) | Pipeline built — blocked on Cloudflare credentials |
 | 13 | [Guided boutique onboarding](13-guided-boutique-onboarding.md) | Done |
 | 14 | [Storefront self-service: profile, order & product detail](14-storefront-self-service.md) | Done |
+| 15 | [WhatsApp order notifications](15-whatsapp-notifications.md) | Todo — from 2026-08-14 kickoff |
+| 16 | [Boutique verification (call-confirmation KYC)](16-boutique-verification.md) | Todo — from 2026-08-14 kickoff |
