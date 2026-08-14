@@ -38,4 +38,4 @@ restarted per milestone.
 | 09 | [Invite-link admin/staff signup](09-invite-link-admin-staff-signup.md) | Done |
 | 10 | Google/Facebook/email login | Done — see [#6](https://github.com/Teddmab/AROM-Documentation/pull/6) |
 | 11 | [Remove Lovable dependency](11-remove-lovable-dependency.md) | Done |
-| 12 | [Cloudflare deploy pipeline](12-cloudflare-deploy-pipeline.md) | Todo — blocked on Cloudflare credentials |
+| 12 | [Cloudflare deploy pipeline](12-cloudflare-deploy-pipeline.md) | Pipeline built — blocked on Cloudflare credentials |
