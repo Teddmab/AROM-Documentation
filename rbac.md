@@ -7,7 +7,7 @@ is the source of truth for enforcement; the frontend only mirrors it for UX).
 | --- | --- | --- | --- |
 | `admin` | `AROM-Backend/scripts/create-user.mjs`, or redeeming an admin-issued invite at `/join` | `/dashboard`, every section, every internal Firestore collection, `/storefront` catalog | — |
 | `staff` | Same as `admin` | `/dashboard`, only the sections listed in their `menus` array | Sections not in `menus`; cannot create/promote other accounts (cannot create invites either) |
-| `partner` | Self-registers at `/storefront/signup` | `/storefront` (catalog, cart, own orders) | `/dashboard` entirely; other partners' orders; internal ERP collections |
+| `partner` | Self-registers at `/storefront/signup` — email/password, Google, or Facebook | `/storefront` (catalog, cart, own orders) | `/dashboard` entirely; other partners' orders; internal ERP collections |
 
 ## How admin/staff accounts are provisioned
 
@@ -38,6 +38,32 @@ Invites are single-use (`used` flips to `true` atomically with the
 `users/{uid}` write) and only an admin can create one — `isAdmin()` in
 `firestore.rules`, not client-side gating (the dashboard also hides the
 "Inviter" card from staff, but that's UX, not the boundary).
+
+## Sign-in methods
+
+Every role can sign in with email/password. `/login` and
+`/storefront/signup` also offer Google and Facebook — `/join` (invite
+redemption) does not, by scope decision, not a technical limit.
+
+The role-safety property is the same one invites rely on: the client
+never gets to choose a role, only Firestore rules decide what a write is
+allowed to contain.
+
+- **`/login`** (`signInWithProvider`) only ever calls `signInWithPopup` —
+  no Firestore write at all. If the signed-in Google/Facebook account has
+  no `users/{uid}` doc, the existing "no profile" handling kicks in
+  (sign out, explain, point at signup) — logging in was never supposed to
+  create an account, OAuth or not.
+- **`/storefront/signup`** (`signUpPartnerWithProvider`) calls
+  `signInWithPopup`, then creates a `role: "partner"` doc **only if** one
+  doesn't already exist for that `uid` — the exact same
+  `request.resource.data.role == 'partner'` rule email/password signup
+  already relies on. An existing user who ends up on the signup page by
+  mistake gets routed to their account, not a second one.
+
+Provider setup (Google, Facebook) happens entirely in the Firebase
+console, never in app code — see
+[runbook.md](runbook.md#enabling-google--facebook-sign-in).
 
 ## Staff menu scoping
 
@@ -95,3 +121,10 @@ catalog is shared but never editable by a partner.
   by rule) — the dashboard's invite list has a button for this. Once used,
   an invite can't be revoked or reused; deactivate the resulting account
   instead, same as any other.
+- **`onboardingComplete` (partner-only, sprint 13)** is a separate axis
+  from `active` — it tracks whether the guided onboarding wizard
+  (contact/address/KYC fields) has been finished, not whether the
+  account is enabled. A partner with `onboardingComplete: false` is
+  still `active` and can sign back in, but is redirected to
+  `/storefront/signup` to finish instead of reaching the catalog. See
+  [data-model.md](data-model.md#guided-boutique-onboarding-sprint-13).
