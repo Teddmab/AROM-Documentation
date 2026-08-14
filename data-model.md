@@ -31,13 +31,60 @@ of that is stored.
 
 | Collection | Fields | Notes |
 | --- | --- | --- |
-| `users/{uid}` | `email`, `displayName`, `role` (`admin`\|`staff`\|`partner`), `menus` (`"all"` or `string[]`), `active`, `createdAt`, `inviteId?` | `uid` matches the Firebase Auth UID. `inviteId` is only present on admin/staff accounts created via `/join` (see `invites` below); an audit trail, not read by any rule |
+| `users/{uid}` | `email`, `displayName`, `role` (`admin`\|`staff`\|`partner`), `menus` (`"all"` or `string[]`), `active`, `createdAt`, `inviteId?`, `onboardingComplete?`, `contactName?`, `phone?`, `address? {ville, commune, quartier, repere?}`, `idNumber?`, `pointDeVente?` | `uid` matches the Firebase Auth UID. `inviteId` is only present on admin/staff accounts created via `/join` (see `invites` below); an audit trail, not read by any rule. The `onboardingComplete` through `pointDeVente` fields are partner-only, written by the guided onboarding wizard — see below |
 | `invites/{id}` | `email`, `role` (`admin`\|`staff`), `menus` (`"all"` or `string[]`), `used`, `usedBy?`, `createdBy`, `createdAt` | Lets an admin grant admin/staff access without the CLI — see [rbac.md](rbac.md#how-adminstaff-accounts-are-provisioned). Single-use, email-locked; doc ID is the actual secret (get-by-ID is public, listing is admin-only) |
 | `products/{id}` | `name`, `format`, `price`, `active`, `imageUrl?` | Storefront catalog; seeded with the three bottle formats from `parametres`. `imageUrl` is optional (nullable) — populated by uploading a photo in the dashboard's Catalogue card, which stores it in Storage at `products/{id}/photo` and writes the resulting download URL here. Fully admin/staff-manageable from the dashboard as of [sprints/05](sprints/05-admin-catalog-management.md) — not just seed-script-only anymore |
-| `orders/{id}` | `partnerId`, `partnerName`, `items: {productId, name, quantity, unitPrice, format}[]`, `total`, `status` (`pending`\|`confirmed`\|`fulfilled`\|`cancelled`), `createdAt` | One doc per storefront order. `format` is a snapshot of the product's format at order time (not a live join), matching how `name`/`unitPrice` are already snapshotted |
+| `orders/{id}` | `partnerId`, `partnerName`, `partnerPhone?`, `partnerAddress?`, `items: {productId, name, quantity, unitPrice, format}[]`, `total`, `status` (`pending`\|`confirmed`\|`fulfilled`\|`cancelled`), `createdAt` | One doc per storefront order. `format` is a snapshot of the product's format at order time (not a live join), matching how `name`/`unitPrice` are already snapshotted. `partnerPhone`/`partnerAddress` are likewise a snapshot of the partner's profile at order time (a single formatted string for the address, not the structured object) — see below |
 
 `firestore.indexes.json` defines a composite index on
 `orders(partnerId ASC, createdAt DESC)` for the "my orders" query.
+
+## Guided boutique onboarding (sprint 13)
+
+`/storefront/signup` (`AROM-Production/src/routes/storefront/signup.tsx`)
+is a 5-step wizard rather than a single form, so a non-technical partner
+is walked through it one question at a time:
+
+1. **Compte** — business name, email/password (or Google/Facebook OAuth).
+2. **Contact** — `contactName` (the person to call), `phone`.
+3. **Localisation** — structured `address`: `ville` (dropdown of known
+   Kasaï-region towns + "Autre" free text), `commune`, `quartier`, and an
+   optional `repere` (landmark) — DRC addresses commonly lack formal
+   street addressing, so this is deliberately not a single free-text field.
+4. **Identification** — optional `idNumber` (CNI or RCCM), light-touch
+   KYC. Explicitly not a document-upload + admin-review flow (out of
+   scope for this sprint) — no new Storage rules were needed.
+5. **Résumé** — review screen, shows the depot the boutique will be
+   served from, then writes everything in one `completePartnerOnboarding`
+   call.
+
+**Two-write account creation.** Step 1 creates the Firebase Auth account
+and an immediate `users/{uid}` doc with `onboardingComplete: false` (via
+`signUpPartner`/`signUpPartnerWithProvider` — unchanged from before this
+sprint except for that one field). Steps 2–4 are held in local component
+state, not written per-step. Step 5's `completePartnerOnboarding` does
+one `updateDoc` with everything collected plus `onboardingComplete: true`
+and `pointDeVente`. This two-write shape (not five) exists specifically
+to avoid the alternative of a signed-in Auth account with **no**
+`users/{uid}` doc at all if someone abandons the wizard early —
+`RequireRole` treats that state as "Accès indisponible", a dead end that
+signs the user out. A doc always exists from the end of step 1 onward,
+so an abandoned wizard is resumable: returning to `/storefront/signup`
+(or reaching `/storefront` directly, which redirects back) picks up at
+step 2 with `displayName`/`email` already known.
+
+**No `firestore.rules` change needed.** The existing partner
+self-`update` rule only constrains `role` from changing — it doesn't
+enumerate field keys — so writing these new fields to a partner's own
+doc needed no rules change, matching how sprint 08's `orders.payment`
+needed none either.
+
+**Point of sale (stub).** AROM currently delivers from a single point of
+sale. Rather than a `pointsDeVente` collection with commune→depot
+matching logic for exactly one entry, `pointDeVente` is a constant
+(`AROM_DEPOT_NAME` in `AROM-Production/src/lib/storefront/depot.ts`)
+written onto the partner's profile at onboarding. Replace this with a
+real collection + lookup when AROM adds a second delivery point.
 
 ## Order → ventes bridge
 
