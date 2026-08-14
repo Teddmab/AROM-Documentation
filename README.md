@@ -19,4 +19,6 @@ storefront where buyers place orders.
 - **[rbac.md](rbac.md)** — the admin/staff/partner role model, how it's enforced, and how to manage accounts.
 - **[data-model.md](data-model.md)** — Firestore collections and the fields they carry.
 - **[runbook.md](runbook.md)** — day-to-day operations: creating accounts, seeding data, deploying rules, local dev.
+- **[flows.md](flows.md)** — verified role × page flow map, how data actually circulates, and the payment integration plan.
 - **[roadmap.md](roadmap.md)** — known gaps and suggested next steps, roughly in priority order.
+- **[sprints/](sprints/)** — the roadmap broken into individual, PR-sized sprints; start with [sprints/v1-mvp.md](sprints/v1-mvp.md).

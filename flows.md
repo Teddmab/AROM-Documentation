@@ -151,21 +151,8 @@ needed for a v1.
 
 ## Sequencing
 
-Roughly in this order, one PR per sprint (see the
-[Sprint Brief](https://claude.ai/code/artifact/0a6920c5-dd67-449c-a168-8fed9eea354a)
-for the prompt template):
-
-1. ~~Account-lockout / signup session-clobber fixes~~ — done, see
-   [Teddmab/AROM-Production#5](https://github.com/Teddmab/AROM-Production/pull/5).
-2. Admin catalog UI: create/edit/deactivate products, image upload to
-   Storage (closes roadmap #6 and the disconnect noted above).
-3. Promo banner: admin-editable headline + product reference + active
-   dates, shown on `/storefront`.
-4. Storefront order tracking: surface delivery-relevant detail beyond the
-   current pending/confirmed/fulfilled/cancelled status (ad-hoc delivery
-   date set by admin on confirm, per earlier decision — no fixed
-   recurring schedule yet).
-5. PawaPay stub integration, per the architecture above.
-6. Admin/staff invite-link signup (roadmap gap #7) — needs the Cloud
-   Functions decision either standalone or bundled with the PawaPay
-   webhook upgrade.
+Tracked as individual sprint files, one PR per sprint — see
+[sprints/v1-mvp.md](sprints/v1-mvp.md) for the full milestone (this flow,
+working end to end) and [sprints/README.md](sprints/README.md) for how a
+sprint file is structured and how it maps to the
+[Sprint Brief generator](https://claude.ai/code/artifact/0a6920c5-dd67-449c-a168-8fed9eea354a).
