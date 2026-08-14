@@ -34,7 +34,7 @@ restarted per milestone.
 | 05 | [Admin catalog management](05-admin-catalog-management.md) | Done |
 | 06 | [Promo banner](06-promo-banner.md) | Done |
 | 07 | [Storefront order tracking](07-storefront-order-tracking.md) | Done |
-| 08 | [PawaPay mobile money (stub)](08-pawapay-payment-stub.md) | Todo |
+| 08 | [PawaPay mobile money (stub)](08-pawapay-payment-stub.md) | Done — stub phase, real credentials still pending |
 | 09 | [Invite-link admin/staff signup](09-invite-link-admin-staff-signup.md) | Done |
 | 10 | [Google/Facebook/email login](10-oauth-google-facebook-login.md) | Done |
 | 11 | [Remove Lovable dependency](11-remove-lovable-dependency.md) | Done |
