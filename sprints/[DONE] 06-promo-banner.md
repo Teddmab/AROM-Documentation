@@ -31,7 +31,7 @@ existing `config/parametres` singleton pattern —
 `{active: boolean, headline: string, description?: string, productId?: string, startDate?: string, endDate?: string}`.
 
 One deviation from the original plan: banners referencing a product open
-that product's detail sheet (see [sprints/14](14-storefront-self-service.md))
+that product's detail sheet (see [sprints/14](<[DONE] 14-storefront-self-service.md>))
 rather than scrolling to it in the catalogue list — the detail sheet
 didn't exist when this sprint was originally scoped, and opening it
 directly is a more direct action than scroll-and-locate.

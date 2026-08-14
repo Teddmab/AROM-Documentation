@@ -39,7 +39,7 @@ Same as sprint 05.
 Also picked up along the way: `orders.fulfilledAt` is now set when an
 order is marked "livrée" (previously nothing recorded when that
 happened), so the storefront order detail sheet (see
-[sprints/14](14-storefront-self-service.md)) can show a real "Livrée le
+[sprints/14](<[DONE] 14-storefront-self-service.md>)) can show a real "Livrée le
 …" date instead of just the status label.
 
 ## Livrable

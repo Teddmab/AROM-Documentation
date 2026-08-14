@@ -27,19 +27,19 @@ restarted per milestone.
 
 | # | Sprint | Status |
 | --- | --- | --- |
-| 01 | [Order → ventes bridge](01-order-ventes-bridge.md) | Done |
-| 02 | [iOS-style redesign & branding](02-ios-redesign-branding.md) | Done |
-| 03 | [Bug fixes, responsive audit, landing animations](03-bugfixes-responsive-animations.md) | Done |
-| 04 | [Account-lockout & signup session fix](04-account-lockout-fix.md) | Done |
-| 05 | [Admin catalog management](05-admin-catalog-management.md) | Done |
-| 06 | [Promo banner](06-promo-banner.md) | Done |
-| 07 | [Storefront order tracking](07-storefront-order-tracking.md) | Done |
-| 08 | [PawaPay mobile money (stub)](08-pawapay-payment-stub.md) | Done — stub phase, real credentials still pending |
-| 09 | [Invite-link admin/staff signup](09-invite-link-admin-staff-signup.md) | Done |
-| 10 | [Google/Facebook/email login](10-oauth-google-facebook-login.md) | Done |
-| 11 | [Remove Lovable dependency](11-remove-lovable-dependency.md) | Done |
+| 01 | [Order → ventes bridge](<[DONE] 01-order-ventes-bridge.md>) | Done |
+| 02 | [iOS-style redesign & branding](<[DONE] 02-ios-redesign-branding.md>) | Done |
+| 03 | [Bug fixes, responsive audit, landing animations](<[DONE] 03-bugfixes-responsive-animations.md>) | Done |
+| 04 | [Account-lockout & signup session fix](<[DONE] 04-account-lockout-fix.md>) | Done |
+| 05 | [Admin catalog management](<[DONE] 05-admin-catalog-management.md>) | Done |
+| 06 | [Promo banner](<[DONE] 06-promo-banner.md>) | Done |
+| 07 | [Storefront order tracking](<[DONE] 07-storefront-order-tracking.md>) | Done |
+| 08 | [PawaPay mobile money (stub)](<[DONE] 08-pawapay-payment-stub.md>) | Done — stub phase, real credentials still pending |
+| 09 | [Invite-link admin/staff signup](<[DONE] 09-invite-link-admin-staff-signup.md>) | Done |
+| 10 | [Google/Facebook/email login](<[DONE] 10-oauth-google-facebook-login.md>) | Done |
+| 11 | [Remove Lovable dependency](<[DONE] 11-remove-lovable-dependency.md>) | Done |
 | 12 | [Cloudflare deploy pipeline](12-cloudflare-deploy-pipeline.md) | Pipeline built — blocked on Cloudflare credentials |
-| 13 | [Guided boutique onboarding](13-guided-boutique-onboarding.md) | Done |
-| 14 | [Storefront self-service: profile, order & product detail](14-storefront-self-service.md) | Done |
+| 13 | [Guided boutique onboarding](<[DONE] 13-guided-boutique-onboarding.md>) | Done |
+| 14 | [Storefront self-service: profile, order & product detail](<[DONE] 14-storefront-self-service.md>) | Done |
 | 15 | [WhatsApp order notifications](15-whatsapp-notifications.md) | Todo — from 2026-08-14 kickoff |
 | 16 | [Boutique verification (call-confirmation KYC)](16-boutique-verification.md) | Todo — from 2026-08-14 kickoff |
