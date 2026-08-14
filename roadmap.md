@@ -34,7 +34,7 @@ individual, PR-sized sprints.
   collects contact info, a structured delivery address, and an optional
   KYC field, and denormalizes phone/address onto each order so the
   dashboard shows what's needed to fulfill it. See
-  [sprints/13](sprints/13-guided-boutique-onboarding.md) and
+  [sprints/13](<sprints/[DONE] 13-guided-boutique-onboarding.md>) and
   [data-model.md](data-model.md#guided-boutique-onboarding-sprint-13).
 - **Payment on the storefront** (was #6c below). `/storefront` is now
   tabbed (Catalogue / Mes commandes) and "Commander" opens a checkout
@@ -43,22 +43,22 @@ individual, PR-sized sprints.
   now writes the real paid amount instead of a hardcoded `encaisse: 0`.
   Server-side webhook confirmation is still deferred (needs Cloud
   Functions, see #10 below). See
-  [sprints/08](sprints/08-pawapay-payment-stub.md) and
+  [sprints/08](<sprints/[DONE] 08-pawapay-payment-stub.md>) and
   [data-model.md](data-model.md#payment-sprint-08-stub-phase).
 - **Admin UI for the storefront catalog** (was #6 below — this had
-  already shipped in [sprints/05](sprints/05-admin-catalog-management.md)
+  already shipped in [sprints/05](<sprints/[DONE] 05-admin-catalog-management.md>)
   but this list was never updated to reflect it). Admin/staff can add,
   price, deactivate, photograph, and (sprint 14) describe a product from
   the dashboard.
 - **Promo banner** (was #6b below). A single active-or-not promo, set by
   admin, shown live at the top of `/storefront`. See
-  [sprints/06](sprints/06-promo-banner.md).
+  [sprints/06](<sprints/[DONE] 06-promo-banner.md>).
 - **Storefront order tracking** and **self-service profile/order/product
   detail**. A partner can now see and correct their own KYC/delivery
   info at `/storefront/profile`, see a real admin-set delivery date on
   their order, and open a detail sheet for any order or product instead
-  of a bare list. See [sprints/07](sprints/07-storefront-order-tracking.md)
-  and [sprints/14](sprints/14-storefront-self-service.md).
+  of a bare list. See [sprints/07](<sprints/[DONE] 07-storefront-order-tracking.md>)
+  and [sprints/14](<sprints/[DONE] 14-storefront-self-service.md>).
 
 ## Security & correctness
 
@@ -130,8 +130,8 @@ sprints, and a longer-term vision worth recording so it isn't lost.
 
 **Already satisfied by shipped/in-review work:**
 - "Améliorer commandes" (better order management, visible delivery
-  status/date) — this is exactly [sprints/07](sprints/07-storefront-order-tracking.md)
-  and [sprints/14](sprints/14-storefront-self-service.md)'s order detail
+  status/date) — this is exactly [sprints/07](<sprints/[DONE] 07-storefront-order-tracking.md>)
+  and [sprints/14](<sprints/[DONE] 14-storefront-self-service.md>)'s order detail
   sheet, both in review as of this meeting.
 - Google/Facebook login, new boutiques landing on the catalog after
   signup, separate catalog/orders views — all already shipped

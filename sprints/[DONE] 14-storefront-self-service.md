@@ -29,7 +29,7 @@ Requested directly, as three related gaps in the same page:
   `updatePartnerProfile` auth function.
 - **Order detail sheet**: clicking an order in "Mes commandes" opens a
   bottom sheet with full line-item breakdown, status, the delivery
-  estimate/date (see [sprints/07](07-storefront-order-tracking.md)), and
+  estimate/date (see [sprints/07](<[DONE] 07-storefront-order-tracking.md>)), and
   the amount — phrased as "à payer à la livraison" for cash orders,
   "Payé" for completed mobile money.
 - **Product detail sheet**: clicking a catalogue row (not the +/-
