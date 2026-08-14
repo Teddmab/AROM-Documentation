@@ -19,6 +19,9 @@ individual, PR-sized sprints.
   a deactivated partner hit a dead-end "Redirection…" screen with no
   explanation. See
   [Teddmab/AROM-Production#5](https://github.com/Teddmab/AROM-Production/pull/5).
+- **Removed all Lovable coupling from `AROM-Production`.** See
+  [architecture.md](architecture.md#update-2026-08-14-lovable-removed) —
+  this is what makes #11 below urgent rather than hypothetical.
 - **Invite-link admin/staff signup** (part of #7 below). Turned out not
   to need the Cloud Functions decision it was originally scoped
   against — see [rbac.md](rbac.md#how-adminstaff-accounts-are-provisioned)
@@ -91,8 +94,11 @@ individual, PR-sized sprints.
     invite-link signup in Done above.) Deliberately deferred since it
     wasn't needed for a working v1 and keeps the project off any
     Functions-related billing surface until it's actually wanted.
-11. **Frontend deploy path is entirely owned by Lovable.** If AROM ever
-    needs a deploy pipeline independent of Lovable (e.g. a Cloudflare API
-    token in `AROM-Production`'s own CI), that's a deliberate decision to
-    make, not something to bolt on silently — see
-    [architecture.md](architecture.md#5-cicd).
+11. **Nothing currently deploys `AROM-Production`.** Was entirely owned by
+    Lovable's pipeline; the project has been disconnected from Lovable
+    (2026-08-14, see [architecture.md](architecture.md#update-2026-08-14-lovable-removed))
+    and no replacement is live yet. This is no longer a someday-maybe
+    item — until an independent Cloudflare Workers pipeline is set up
+    (needs a Cloudflare API token + account ID), merging a PR here does
+    not update the live site. See
+    [runbook.md](runbook.md#frontend-deploys) for exactly what's needed.

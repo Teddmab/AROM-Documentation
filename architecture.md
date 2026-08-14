@@ -36,7 +36,8 @@ single-tenant demo:
   could only be typed in by whoever had the dashboard open.
 - **An MCP tool server was already wired up** (`src/lib/mcp/`,
   `src/routes/mcp.ts`) exposing read-only ERP summaries as MCP tools —
-  unrelated to auth, but worth knowing it's there.
+  unrelated to auth. Removed 2026-08-14 along with the rest of the
+  Lovable dependency, see "Update" below.
 
 In short: a working UI and a correct calculation engine
 (`src/lib/erp/engine.ts`), sitting on zero persistence and zero access
@@ -100,31 +101,27 @@ the dashboard is now real-time, shared, and durable.
 Two pipelines, deliberately scoped to what each repo actually owns:
 
 - **`AROM-Production/.github/workflows/ci.yml`** — install, lint,
-  typecheck, build on every push/PR to `main`. It does **not** deploy —
-  Lovable's own pipeline already builds and deploys this app to Cloudflare
-  Workers on every push to the connected branch, and this repo's CI has no
-  Cloudflare credentials. Duplicating that deploy here would either fight
-  Lovable's pipeline or require credentials this session doesn't have; the
-  right move if that's ever wanted is a deliberate follow-up, not a
-  silent addition.
+  typecheck, build on every push/PR to `main`. Does not deploy — see the
+  2026-08-14 update below for what changed here.
 - **`AROM-Backend/.github/workflows/deploy-rules.yml`** — deploys
   `firestore.rules`, `firestore.indexes.json`, `storage.rules` to
   `arom-production` on every push to `main` touching those files, using
-  the `FIREBASE_SERVICE_ACCOUNT_KEY` repo secret.
+  the `FIREBASE_SERVICE_ACCOUNT_KEY` repo secret. Unaffected by the
+  Lovable removal — this pipeline never depended on Lovable.
 
-## Topology
+## Topology (as of 2026-08-14)
 
 ```
                  ┌─────────────────────────┐
-   visitors ───► │  Lovable → Cloudflare    │  AROM-Production (frontend)
-                 │  Workers (SSR + static)  │  — builds/deploys on push,
-                 └─────────────┬────────────┘    independent of GitHub CI
+   visitors ───► │  Cloudflare Workers      │  AROM-Production (frontend)
+                 │  (SSR + static)          │  — deploy pipeline: see the
+                 └─────────────┬────────────┘    2026-08-14 update below
                                 │ Firebase Web SDK
                                 ▼
                  ┌─────────────────────────┐
                  │   Firebase: arom-production
-                 │   - Auth (email/password)
-                 │   - Firestore (ERP data, users, products, orders)
+                 │   - Auth (email/password, Google, Facebook)
+                 │   - Firestore (ERP data, users, invites, products, orders)
                  │   - Storage (product photos)
                  └─────────────┬────────────┘
                                 │ rules deploy (CI) / admin scripts
@@ -133,6 +130,42 @@ Two pipelines, deliberately scoped to what each repo actually owns:
                  │   AROM-Backend           │  rules, seed & account scripts
                  └─────────────────────────┘
 ```
+
+## Update (2026-08-14): Lovable removed
+
+`AROM-Production` was disconnected from Lovable — both the GitHub
+integration (on Lovable's own dashboard, outside this repo) and every
+piece of Lovable-specific code:
+
+- `vite.config.ts` no longer depends on `@lovable.dev/vite-tanstack-config`.
+  Read the wrapper's actual installed source rather than reverse-engineering
+  it from behavior, and rebuilt the same config directly: TanStack Start,
+  `@tailwindcss/vite`, `vite-tsconfig-paths`, Nitro with the
+  `cloudflare-module` preset (build only, not during `vite dev`),
+  `@vitejs/plugin-react`, the same path alias/dedupe list. Every package
+  needed was already a direct dependency — nothing new to install. Dropped
+  intentionally: Lovable's dev-only error-diagnostics plugins and the
+  sandbox-only asset proxy/HMR-gate/dev-server-bridge plugins, all
+  confirmed no-ops outside Lovable's own sandbox environment by reading
+  the source, not assumed safe to drop.
+- The MCP tool server (`@lovable.dev/mcp-js`, `src/lib/mcp/`, the `/mcp`
+  and `[.mcp]` routes) is gone — a deliberate scope decision made when
+  disconnecting, not a side effect. Nothing else depended on it.
+- `src/lib/lovable-error-reporting.ts`, `.lovable/`, and `AGENTS.md`
+  (which only ever contained the Lovable connection notice) are gone.
+- Two asset URLs that only resolved through Lovable's own hosting
+  (`arom-hero.asset.json`'s `/__l5e/assets-v1/...` path, and a
+  `gpt-engineer-file-uploads` GCS-hosted social image) were 404ing in
+  any non-Lovable environment — including local dev, which is how this
+  got caught. Both now point at `/logo-hero.png`.
+
+**Consequence that matters operationally**: nothing currently deploys
+`AROM-Production`. Lovable's pipeline was the only thing that did.
+Setting up an independent Cloudflare Workers deploy pipeline (a
+`wrangler` config + GitHub Actions, needing a Cloudflare API token and
+account ID) is a deliberate, separate follow-up — not bundled into the
+removal itself, and not yet done as of this update. See
+[runbook.md](runbook.md#frontend-deploys) for current status.
 
 ## Deliberate non-goals of this pass
 
