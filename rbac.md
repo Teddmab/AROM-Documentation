@@ -87,17 +87,57 @@ single place this is evaluated client-side (used both to filter the
 sidebar and, via `<RequireRole>`, to gate the whole `/dashboard` route to
 admin+staff regardless of menu).
 
-**Important**: menu scoping today is a **UI-only** convenience, not a
-data-level restriction — `firestore.rules` grants any `staff` account
-read/write on all internal ERP collections (`producteurs`,
-`approvisionnements`, `productions`, `stockMP`, `clients`, `ventes`,
-`marketing`, `charges`). A staff account without `stock` in their `menus`
-won't see the Stock UI, but could still write to `stockMP` directly via
-the SDK if they inspected the app. This matches the operational reality
-(all internal data is company data, not user-private data) but is worth
-tightening if AROM ever has staff whose access needs to be enforced
-adversarially rather than just organizationally — see
-[roadmap.md](roadmap.md).
+**Important**: menu scoping via `create-user.mjs`/manually-picked
+`menus` (i.e. no `poste`, or `poste: "Personnalisé"`) is still
+**UI-only**, not a data-level restriction — a staff account without
+`stock` in their `menus` won't see the Stock UI, but could still write
+to `stockMP` directly via the SDK if they inspected the app. This
+matches the operational reality (all internal data is company data,
+not user-private data) for anyone not opted into a specific poste. For
+staff assigned `"Directeur de Production"` or `"Chargée de
+Commercialisation"`, this is no longer true — see below.
+
+## Poste-based data scoping (sprint 17)
+
+A staff account can additionally carry a `poste`:
+`"Directeur de Production"`, `"Chargée de Commercialisation"`, or
+`"Personnalisé"`. Unlike `menus`, `poste` is read by `firestore.rules`
+itself and actually restricts which collections that account can
+read/write — real enforcement, not UI hiding:
+
+```
+// AROM-Backend/firestore.rules
+function poste() {
+  return isStaff() ? userDoc().data.get('poste', null) : null;
+}
+function isProductionStaff() { return poste() == 'Directeur de Production'; }
+function isCommercialStaff() { return poste() == 'Chargée de Commercialisation'; }
+function isUnscopedStaff() {
+  return isStaff() && !(poste() in ['Directeur de Production', 'Chargée de Commercialisation']);
+}
+```
+
+| Poste | Full access to | Denied on |
+| --- | --- | --- |
+| Directeur de Production | `producteurs`, `approvisionnements`, `productions`, `stockMP` | `clients`, `ventes`, `marketing`, `products`, `orders`, `charges` |
+| Chargée de Commercialisation | `clients`, `ventes`, `marketing`, `products`, `orders` | `producteurs`, `approvisionnements`, `productions`, `stockMP`, `charges` |
+| No poste, or `Personnalisé` | Everything (unchanged from before sprint 17) | — |
+
+**This is an opt-in per account, never a migration.** Every staff
+account that existed before sprint 17 — and every new one that doesn't
+get a poste assigned — keeps full access. Only assigning a specific
+named poste (at invite time, or afterward from the dashboard's "Équipe
+(staff)" card) turns on scoping for that one account. `charges` (fixed
+costs) is excluded from both named postes — neither obviously owns it,
+and there's still no UI to write to it at all.
+
+Verified with 24 attack-scenario tests against the emulator using the
+**client SDK** (Admin SDK bypasses rules and can't validate a rules
+change): each poste denied on every collection outside its own,
+unscoped/`Personnalisé`/admin accounts fully unaffected, and a redeemer
+can't tamper their way into a different poste than what an invite
+actually granted (the same cross-document check pattern as
+`isValidInviteRedemption()` above, extended to cover `poste`).
 
 ## Partner isolation
 
