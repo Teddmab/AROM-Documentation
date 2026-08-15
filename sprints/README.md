@@ -42,4 +42,4 @@ restarted per milestone.
 | 13 | [Guided boutique onboarding](<[DONE] 13-guided-boutique-onboarding.md>) | Done |
 | 14 | [Storefront self-service: profile, order & product detail](<[DONE] 14-storefront-self-service.md>) | Done |
 | 15 | [WhatsApp order notifications](15-whatsapp-notifications.md) | Todo — from 2026-08-14 kickoff |
-| 16 | [Boutique verification (call-confirmation KYC)](16-boutique-verification.md) | Todo — from 2026-08-14 kickoff |
+| 16 | [Boutique verification (call-confirmation KYC)](<[DONE] 16-boutique-verification.md>) | Done |

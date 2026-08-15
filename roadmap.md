@@ -85,12 +85,14 @@ individual, PR-sized sprints.
    disconnected systems** — a storefront order never creates a `clients`
    doc, and `ventes.idClient` is free text, not a foreign key. Not
    urgent at current scale; worth knowing before it isn't.
-7. **No admin UI for *managing* existing accounts.** *Creating* an
-   admin/staff account no longer needs the CLI (invite-link signup, see
-   Done above) — but listing accounts, deactivating one, or changing a
-   role still does (`AROM-Backend/scripts/list-users.mjs` + a manual
-   Firestore console edit). A "Personnel" admin screen for that would
-   close the loop.
+7. **No admin UI for *managing* existing accounts** — partially closed.
+   *Creating* an admin/staff account no longer needs the CLI
+   (invite-link signup, see Done above), and *partner* accounts now
+   have an admin-facing list (sprint 16's "Boutiques partenaires" card —
+   name, contact, address, a verification toggle). Still CLI-only:
+   listing, deactivating, or changing the role of an **admin/staff**
+   account (`AROM-Backend/scripts/list-users.mjs` + a manual Firestore
+   console edit) — the boutiques card doesn't cover internal accounts.
 8. **`reset()` in the ERP store is now a no-op** (with a toast pointing to
    admin scripts) rather than actually clearing data — intentional, since
    the old "reset to seed" behavior would have wiped shared, live
@@ -132,18 +134,20 @@ sprints, and a longer-term vision worth recording so it isn't lost.
 - "Améliorer commandes" (better order management, visible delivery
   status/date) — this is exactly [sprints/07](<sprints/[DONE] 07-storefront-order-tracking.md>)
   and [sprints/14](<sprints/[DONE] 14-storefront-self-service.md>)'s order detail
-  sheet, both in review as of this meeting.
+  sheet, both shipped.
 - Google/Facebook login, new boutiques landing on the catalog after
   signup, separate catalog/orders views — all already shipped
   (sprint 10, and the catalogue/orders tabs work).
-
-**New asks, captured as sprints:**
-- [sprints/15](sprints/15-whatsapp-notifications.md) — WhatsApp
-  notifications on order confirm/fulfill.
-- [sprints/16](sprints/16-boutique-verification.md) — a simple,
-  human-in-the-loop ("phone call") verification flag for new boutiques,
+- "Implémenter KYC" (a simple, human-in-the-loop verification for new
+  boutiques) — [sprints/16](<sprints/[DONE] 16-boutique-verification.md>),
   distinct from and in addition to the KYC *data collection* sprint 13
-  already shipped.
+  already shipped; also the first real (partial) answer to #7 below.
+
+**New ask, still open:**
+- [sprints/15](sprints/15-whatsapp-notifications.md) — WhatsApp
+  notifications on order confirm/fulfill. Needs a WhatsApp Business API
+  or Twilio-style provider decision before it can be more than a stub —
+  see the sprint file's "Décisions déjà actées."
 
 **"Mise en ligne" (go live)** is sprint 12 — the Cloudflare Workers
 pipeline is built and waiting on the client to provide
