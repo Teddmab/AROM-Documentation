@@ -1,9 +1,9 @@
 # Sprint 16 — Boutique verification (call-confirmation KYC)
 
-**Status:** Todo
+**Status:** Done — [Teddmab/AROM-Production#12](https://github.com/Teddmab/AROM-Production/pull/12)
 
 **Rôle concerné :** Admin (vérifie) / Partenaire (soumet, déjà fait)
-**Page / zone :** Dashboard — new "Boutiques" or "Personnel" section
+**Page / zone :** Dashboard — Primes & personnel section
 
 ## Pourquoi maintenant
 
@@ -54,7 +54,12 @@ missing piece: giving admin something to act on.
 - **Piggybacks on roadmap #7** (admin account management) rather than
   being a narrow "verification-only" screen, since building a
   verification list and then a *separate* general accounts-management
-  screen later would duplicate most of the same UI.
+  screen later would duplicate most of the same UI. Concretely, the new
+  "Boutiques partenaires" card lives in the dashboard's existing Primes
+  & personnel section, right next to `InviteCard` (sprint 09) — both are
+  "accounts I need to act on" cards, so this keeps that grouping
+  consistent rather than adding a new top-level nav section for one
+  card.
 
 ## Contraintes
 
@@ -67,15 +72,21 @@ originally and did need a rules change; sprint 13 didn't).
 
 ## Livrable
 
-`AROM-Production` (new admin "Boutiques" dashboard section/card,
-`verified` field on `UserProfile`). `AROM-Documentation` (data-model.md,
-rbac.md, roadmap.md — closes #7).
+`AROM-Production` (`BoutiquesCard` in the Primes & personnel section of
+`dashboard.tsx`, `verified` field on `UserProfile` in `auth.tsx`).
+`AROM-Documentation` (data-model.md, roadmap.md — partially closes #7;
+full admin/staff account management is still CLI-only).
 
 ## Test de fumée
 
-- [ ] New partner signup defaults to `verified: false`
-- [ ] Admin sees a list of boutiques with contact info and current
+- [x] New partner signup defaults to `verified: false`
+- [x] Admin sees a list of boutiques with contact info and current
       verification status
-- [ ] Admin flips a boutique to verified — persists, visible live
-- [ ] An unverified partner can still browse, order, and check out
-      normally (informational-only, confirmed not a gate)
+- [x] Admin flips a boutique to verified — persists, visible live
+- [x] An unverified partner can still browse, order, and check out
+      normally (informational-only, confirmed not a gate) — implicit in
+      the regression suite's ordering, since checkout happens before
+      the boutique is ever verified
+
+Covered by the automated regression suite (`node regression-suite.mjs`,
+23/23 passing).
