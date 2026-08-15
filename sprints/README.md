@@ -44,3 +44,4 @@ restarted per milestone.
 | 15 | [WhatsApp order notifications](15-whatsapp-notifications.md) | Todo — from 2026-08-14 kickoff |
 | 16 | [Boutique verification (call-confirmation KYC)](<[DONE] 16-boutique-verification.md>) | Done |
 | 17 | [Staff poste, per-person bonus tracking, data-level enforcement](<[DONE] 17-staff-poste-data-enforcement.md>) | Done |
+| 18 | [Dashboard IA rework, data/logic fixes, KYC review, password reset](<[DONE] 18-dashboard-ia-data-rethink.md>) | Done |

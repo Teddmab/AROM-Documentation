@@ -67,6 +67,21 @@ individual, PR-sized sprints.
   unchanged — still full access, `menus` still UI-only for them. See
   [rbac.md](rbac.md#poste-based-data-scoping-sprint-17) and
   [sprints/17](<sprints/[DONE] 17-staff-poste-data-enforcement.md>).
+- **Dashboard information architecture and several data/logic gaps.**
+  Primes & personnel and Commercialisation (the two sections that had
+  stacked 5-6 cards into one scroll) now use tabbed sub-navigation. The
+  Campagne/Du/Au filter bar now actually filters on-screen data
+  (previously export-only); "Stock cumulé" sums in chronological order,
+  not insertion order; `charges` has an admin card (previously no UI
+  at all); campaign dates in Paramètres ERP are editable; Exécutif has
+  a real trend chart (`recharts` was installed but unused); Boutiques
+  partenaires shows the CNI/RCCM collected at signup next to the
+  "Vérifié" toggle, so admin has something to review, not a blind
+  toggle. See
+  [sprints/18](<sprints/[DONE] 18-dashboard-ia-data-rethink.md>).
+- **Password reset**, missing entirely before. "Mot de passe oublié ?"
+  on `/login`. See
+  [sprints/18](<sprints/[DONE] 18-dashboard-ia-data-rethink.md>).
 
 ## Security & correctness
 
@@ -127,6 +142,46 @@ individual, PR-sized sprints.
     `CLOUDFLARE_ACCOUNT_ID` as GitHub repo secrets before pushes to
     `main` actually deploy. See
     [runbook.md](runbook.md#frontend-deploys) for exactly what's needed.
+
+## Backlog toward viable V1
+
+Surfaced by a 2026-08-15 audit alongside [sprints/18](<sprints/[DONE] 18-dashboard-ia-data-rethink.md>)
+(dashboard IA/data rework) — real gaps, deliberately not bundled into
+that sprint because each is bigger scope on its own. In rough priority
+order:
+
+12. **Storefront inventory / stock-out prevention.** `products` has no
+    `stock` field at all — the storefront quantity stepper only floors
+    at 0, with no upper bound tied to `computed.stockPF` (the real
+    finished-goods count, which lives only in the internal ERP Stock
+    tab, completely disconnected from the storefront catalog). A
+    partner can order more bottles than physically exist. Needs a
+    `stock` field on `products`, a way to set it from the Catalogue
+    card, and a checkout-time validation — real operational risk at
+    production scale.
+13. **Full admin/staff account management UI.** Deactivating an
+    account or changing its role is still CLI-only
+    (`scripts/list-users.mjs` + a manual Firestore console edit).
+    Sprint 16/17's "Boutiques partenaires"/"Équipe" cards cover
+    verification and poste assignment, not this. Same gap as roadmap
+    #7 above, restated here because it's part of the same "what's
+    missing for V1" audit.
+14. **New-boutique-signup notification.** Sprint 18 added an
+    unverified-first sort to Boutiques partenaires so new signups
+    aren't buried alphabetically, but there's still no push/email
+    alert when one signs up — admin only finds out by opening the
+    dashboard.
+15. **`recharts` beyond the one Exécutif trend chart** (sprint 18).
+    Commercialisation, Finances, and Stock all still present their
+    numbers as tables only; each could get a real chart the same way
+    Exécutif just did.
+16. **Table pagination/search.** Every table in the dashboard (ventes,
+    productions, invites, …) renders its full unfiltered array with no
+    paging or search. Not urgent at current scale (a few dozen rows
+    per collection) but will need addressing as a campaign's data
+    grows.
+17. **Email verification.** `sendEmailVerification` is unused —
+    nothing confirms a signup's e-mail address is real, for any role.
 
 ## From the 2026-08-14 kickoff meeting (client: Ethical Mine)
 
