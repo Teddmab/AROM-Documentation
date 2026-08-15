@@ -128,3 +128,9 @@ catalog is shared but never editable by a partner.
   still `active` and can sign back in, but is redirected to
   `/storefront/signup` to finish instead of reaching the catalog. See
   [data-model.md](data-model.md#guided-boutique-onboarding-sprint-13).
+- **`verified` (partner-only, sprint 16)** is a third, independent axis —
+  whether admin has confirmed the boutique is real with a phone call.
+  Purely informational: it doesn't gate `active`-equivalent access the
+  way `active`/`onboardingComplete` do, and no `firestore.rules` check
+  reads it. Admin flips it from the dashboard's "Boutiques partenaires"
+  card (Primes & personnel section).
