@@ -59,15 +59,17 @@ individual, PR-sized sprints.
   their order, and open a detail sheet for any order or product instead
   of a bare list. See [sprints/07](<sprints/[DONE] 07-storefront-order-tracking.md>)
   and [sprints/14](<sprints/[DONE] 14-storefront-self-service.md>).
+- **Staff data-level scoping** (was #1 below) — **partial**. A staff
+  account assigned `"Directeur de Production"` or `"Chargée de
+  Commercialisation"` is now genuinely restricted at the
+  `firestore.rules` level to their department's collections, not just
+  hidden in the UI. Accounts with no poste (or `"Personnalisé"`) are
+  unchanged — still full access, `menus` still UI-only for them. See
+  [rbac.md](rbac.md#poste-based-data-scoping-sprint-17) and
+  [sprints/17](<sprints/[DONE] 17-staff-poste-data-enforcement.md>).
 
 ## Security & correctness
 
-1. **Staff data-level scoping.** `firestore.rules` currently grants any
-   `staff` account read/write on *all* internal ERP collections regardless
-   of their `menus`. Menu scoping is UI-only today (see
-   [rbac.md](rbac.md)). Fine for a small trusted team; worth tightening
-   with per-collection role checks (or a `menus`-aware rule) before staff
-   headcount grows past "everyone trusts everyone."
 2. **No email verification / password reset flow** in the UI. Firebase
    Auth supports both; `signInWithEmailAndPassword` /
    `createUserWithEmailAndPassword` are wired but nothing calls
@@ -87,12 +89,14 @@ individual, PR-sized sprints.
    urgent at current scale; worth knowing before it isn't.
 7. **No admin UI for *managing* existing accounts** — partially closed.
    *Creating* an admin/staff account no longer needs the CLI
-   (invite-link signup, see Done above), and *partner* accounts now
-   have an admin-facing list (sprint 16's "Boutiques partenaires" card —
-   name, contact, address, a verification toggle). Still CLI-only:
-   listing, deactivating, or changing the role of an **admin/staff**
-   account (`AROM-Backend/scripts/list-users.mjs` + a manual Firestore
-   console edit) — the boutiques card doesn't cover internal accounts.
+   (invite-link signup, see Done above), *partner* accounts have an
+   admin-facing list (sprint 16's "Boutiques partenaires" card — name,
+   contact, address, a verification toggle), and *staff* accounts have
+   one too (sprint 17's "Équipe (staff)" card — name, email, poste
+   assignment). Still CLI-only: listing all fields, deactivating, or
+   changing the *role* of an admin/staff account
+   (`AROM-Backend/scripts/list-users.mjs` + a manual Firestore console
+   edit) — neither card covers those.
 8. **`reset()` in the ERP store is now a no-op** (with a toast pointing to
    admin scripts) rather than actually clearing data — intentional, since
    the old "reset to seed" behavior would have wiped shared, live

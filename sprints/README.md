@@ -43,3 +43,4 @@ restarted per milestone.
 | 14 | [Storefront self-service: profile, order & product detail](<[DONE] 14-storefront-self-service.md>) | Done |
 | 15 | [WhatsApp order notifications](15-whatsapp-notifications.md) | Todo — from 2026-08-14 kickoff |
 | 16 | [Boutique verification (call-confirmation KYC)](<[DONE] 16-boutique-verification.md>) | Done |
+| 17 | [Staff poste, per-person bonus tracking, data-level enforcement](<[DONE] 17-staff-poste-data-enforcement.md>) | Done |
