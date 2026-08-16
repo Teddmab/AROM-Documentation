@@ -47,3 +47,4 @@ restarted per milestone.
 | 18 | [Dashboard IA rework, data/logic fixes, KYC review, password reset](<[DONE] 18-dashboard-ia-data-rethink.md>) | Done |
 | 19 | [Record detail modals + sidebar sub-nav shortcuts](<[DONE] 19-record-detail-modals-sidebar-shortcuts.md>) | Done |
 | 20 | [Parcours production funnel view + responsive modals](<[DONE] 20-parcours-production-funnel.md>) | Done |
+| 21 | [Real-number calculation breakdowns in aggregate-value modals](<[DONE] 21-calculation-breakdowns.md>) | Done |
