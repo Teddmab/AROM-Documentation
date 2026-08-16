@@ -48,3 +48,4 @@ restarted per milestone.
 | 19 | [Record detail modals + sidebar sub-nav shortcuts](<[DONE] 19-record-detail-modals-sidebar-shortcuts.md>) | Done |
 | 20 | [Parcours production funnel view + responsive modals](<[DONE] 20-parcours-production-funnel.md>) | Done |
 | 21 | [Real-number calculation breakdowns in aggregate-value modals](<[DONE] 21-calculation-breakdowns.md>) | Done |
+| 22 | [Sidebar grouping, inline Parcours details, export card repositioned](<[DONE] 22-sidebar-grouping-parcours-inline-export-move.md>) | Done |
