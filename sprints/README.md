@@ -45,3 +45,4 @@ restarted per milestone.
 | 16 | [Boutique verification (call-confirmation KYC)](<[DONE] 16-boutique-verification.md>) | Done |
 | 17 | [Staff poste, per-person bonus tracking, data-level enforcement](<[DONE] 17-staff-poste-data-enforcement.md>) | Done |
 | 18 | [Dashboard IA rework, data/logic fixes, KYC review, password reset](<[DONE] 18-dashboard-ia-data-rethink.md>) | Done |
+| 19 | [Record detail modals + sidebar sub-nav shortcuts](<[DONE] 19-record-detail-modals-sidebar-shortcuts.md>) | Done |
