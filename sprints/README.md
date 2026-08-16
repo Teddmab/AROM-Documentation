@@ -50,3 +50,4 @@ restarted per milestone.
 | 21 | [Real-number calculation breakdowns in aggregate-value modals](<[DONE] 21-calculation-breakdowns.md>) | Done |
 | 22 | [Sidebar grouping, inline Parcours details, export card repositioned](<[DONE] 22-sidebar-grouping-parcours-inline-export-move.md>) | Done |
 | 23 | [Automated FC→USD currency exchange + Promotion as its own sidebar item](<[DONE] 23-currency-exchange-promotion-menu.md>) | Done |
+| 24 | [Self-service "Mon profil" for admin/staff accounts](<[DONE] 24-my-profile-self-update.md>) | Done |

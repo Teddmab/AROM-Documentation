@@ -114,6 +114,10 @@ individual, PR-sized sprints.
   under "Parcours production," matching sprint 22's treatment of the
   other four. See
   [sprints/23](<sprints/[DONE] 23-currency-exchange-promotion-menu.md>).
+- **Self-service "Mon profil"** for admin/staff, mirroring the
+  storefront partner's own profile page — click the header's name/role
+  to rename yourself or send a password-reset email. See
+  [sprints/24](<sprints/[DONE] 24-my-profile-self-update.md>).
 
 ## Security & correctness
 

@@ -157,6 +157,13 @@ catalog is shared but never editable by a partner.
 - **Changing a role**: re-run `create-user.mjs` with the new role, or edit
   the Firestore doc directly (rules block a signed-in user from changing
   their *own* role, but `admin` can change anyone's).
+- **Self-updating your own profile (sprint 24)**: the dashboard's "Mon
+  profil" (click the header's name/role) lets any signed-in admin/staff
+  account rename itself and trigger a password-reset email. The
+  self-update rule only blocks a `role` change — it would technically
+  allow a broader write (`menus`, `poste`, etc.) too, but
+  `updateOwnProfile` (`AROM-Production/src/lib/firebase/auth.tsx`) is
+  the only client path offered, and it only ever writes `displayName`.
 - **Revoking an unused invite**: delete the `invites/{id}` doc (admin-only
   by rule) — the dashboard's invite list has a button for this. Once used,
   an invite can't be revoked or reused; deactivate the resulting account
