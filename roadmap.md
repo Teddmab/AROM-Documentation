@@ -107,6 +107,13 @@ individual, PR-sized sprints.
   instead of navigating away; every page's export card moved from the
   top (where it read as the primary filter) to the bottom. See
   [sprints/22](<sprints/[DONE] 22-sidebar-grouping-parcours-inline-export-move.md>).
+- **Automated FC→USD conversion** on summary monetary figures (header,
+  KPI tiles, Exécutif/Finances/KPI stratégiques tables) — a daily rate
+  cached in `config/exchangeRate`, no manual lookup needed. "Promotion"
+  also moved out of Commercialisation's tabs into its own sidebar item
+  under "Parcours production," matching sprint 22's treatment of the
+  other four. See
+  [sprints/23](<sprints/[DONE] 23-currency-exchange-promotion-menu.md>).
 
 ## Security & correctness
 
