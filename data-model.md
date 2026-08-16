@@ -16,10 +16,10 @@ collection per array field, plus a singleton config doc:
 | `config/parametres` | `objectifAnanasKg`, `objectifBouteilles`, `prix500/330/300`, `tauxCommission`, `tauxPrimeProduction`, `tauxPertesMax`, `distanceFournisseurKm`, `debutProduction`, `finProduction`, `finCommercialisation`, `objectifClients`, `objectifMargeBrute` | Single doc, edited from the "Paramètres ERP" dashboard section |
 | `producteurs/{id}` | `nom`, `village`, `secteur`, `territoire`, `telephone`, `produit`, `capaciteKgMois`, `prixConvenu`, `statut`, `observations` | Supplier registry |
 | `approvisionnements/{id}` | `numero`, `date`, `idProducteur`, `fournisseur`, `village`, `produit`, `qteCommandeeKg`, `qteRecueKg`, `prixKg`, `transport`, `autresFrais`, `qualite` | Purchase receipts |
-| `productions/{id}` | `lot`, `date`, `kgUtilises`, `volumeJusL`, `q500`, `q330`, `q300`, `rejets`, `responsable`, `statut` | Production batches |
+| `productions/{id}` | `lot`, `date`, `kgUtilises`, `volumeJusL`, `q500`, `q330`, `q300`, `rejets`, `responsable`, `staffUid?`, `statut` | Production batches. `responsable` and `staffUid` (sprint 17) are auto-filled from the logged-in staff account, not typed — `staffUid` powers per-person bonus tracking; entries predating sprint 17 have no `staffUid` |
 | `stockMP/{id}` | `date`, `produit`, `unite`, `type` (`Entrée`/`Sortie`/`Ajustement`), `entree`, `sortie`, `coutUnitaire`, `observation` | Raw-material stock ledger |
 | `clients/{id}` | `nom`, `categorie`, `contact`, `zone`, `premierContact`, `statut` | Internal client registry (distinct from `users`/partner accounts) |
-| `ventes/{id}` | `numero`, `date`, `idClient`, `client`, `canal`, `format`, `quantite`, `prixUnitaire`, `remise`, `encaisse`, `commerciale` | Sales journal |
+| `ventes/{id}` | `numero`, `date`, `idClient`, `client`, `canal`, `format`, `quantite`, `prixUnitaire`, `remise`, `encaisse`, `commerciale`, `staffUid?` | Sales journal. `commerciale`/`staffUid` (sprint 17) — same auto-fill as `productions.responsable`/`staffUid` above |
 | `marketing/{id}` | `numero`, `date`, `campagne`, `canal`, `cible`, `description`, `budget`, `coutReel`, `contacts`, `prospects`, `ventesGenerees` | Marketing actions |
 | `charges/{id}` | `rubrique`, `budget`, `realise` | Fixed charges |
 
@@ -31,11 +31,12 @@ of that is stored.
 
 | Collection | Fields | Notes |
 | --- | --- | --- |
-| `users/{uid}` | `email`, `displayName`, `role` (`admin`\|`staff`\|`partner`), `menus` (`"all"` or `string[]`), `active`, `createdAt`, `inviteId?`, `onboardingComplete?`, `contactName?`, `phone?`, `address? {ville, commune, quartier, repere?}`, `idNumber?`, `pointDeVente?`, `verified?` | `uid` matches the Firebase Auth UID. `inviteId` is only present on admin/staff accounts created via `/join` (see `invites` below); an audit trail, not read by any rule. The `onboardingComplete` through `verified` fields are partner-only. `onboardingComplete` through `pointDeVente` are written by the guided onboarding wizard — see below. `verified` (sprint 16) defaults `false` at signup and is flipped by admin from the dashboard's "Boutiques partenaires" card after a phone-call confirmation — informational only, never a gate on ordering |
-| `invites/{id}` | `email`, `role` (`admin`\|`staff`), `menus` (`"all"` or `string[]`), `used`, `usedBy?`, `createdBy`, `createdAt` | Lets an admin grant admin/staff access without the CLI — see [rbac.md](rbac.md#how-adminstaff-accounts-are-provisioned). Single-use, email-locked; doc ID is the actual secret (get-by-ID is public, listing is admin-only) |
+| `users/{uid}` | `email`, `displayName`, `role` (`admin`\|`staff`\|`partner`), `menus` (`"all"` or `string[]`), `active`, `createdAt`, `inviteId?`, `onboardingComplete?`, `contactName?`, `phone?`, `address? {ville, commune, quartier, repere?}`, `idNumber?`, `pointDeVente?`, `verified?`, `poste?` | `uid` matches the Firebase Auth UID. `inviteId` is only present on admin/staff accounts created via `/join` (see `invites` below); an audit trail, not read by any rule. The `onboardingComplete` through `verified` fields are partner-only. `onboardingComplete` through `pointDeVente` are written by the guided onboarding wizard — see below. `verified` (sprint 16) defaults `false` at signup and is flipped by admin from the dashboard's "Boutiques partenaires" card after a phone-call confirmation — informational only, never a gate on ordering. `idNumber` was write-only (collected at signup, never read back by the dashboard) until [sprint 18](<sprints/[DONE] 18-dashboard-ia-data-rethink.md>), which surfaces it next to the "Vérifié" toggle so admin has something to actually review before verifying. `poste` (sprint 17, staff-only) is `"Directeur de Production"` \| `"Chargée de Commercialisation"` \| `"Personnalisé"` — see below |
+| `invites/{id}` | `email`, `role` (`admin`\|`staff`), `menus` (`"all"` or `string[]`), `poste?`, `used`, `usedBy?`, `createdBy`, `createdAt` | Lets an admin grant admin/staff access without the CLI — see [rbac.md](rbac.md#how-adminstaff-accounts-are-provisioned). Single-use, email-locked; doc ID is the actual secret (get-by-ID is public, listing is admin-only). `poste` (sprint 17) carries through to the redeemed account's `users/{uid}` doc, validated the same way as `role`/`menus` — see below |
 | `products/{id}` | `name`, `format`, `price`, `active`, `imageUrl?`, `description?` | Storefront catalog; seeded with the three bottle formats from `parametres`. `imageUrl` is optional (nullable) — populated by uploading a photo in the dashboard's Catalogue card, which stores it in Storage at `products/{id}/photo` and writes the resulting download URL here. Fully admin/staff-manageable from the dashboard as of [sprints/05](<sprints/[DONE] 05-admin-catalog-management.md>) — not just seed-script-only anymore. `description` (sprint 14) is free text shown on the storefront's product detail sheet — no structured attributes (ingredients, nutrition) yet |
 | `orders/{id}` | `partnerId`, `partnerName`, `partnerPhone?`, `partnerAddress?`, `items: {productId, name, quantity, unitPrice, format}[]`, `total`, `status` (`pending`\|`confirmed`\|`fulfilled`\|`cancelled`), `createdAt`, `deliveryDate?`, `fulfilledAt?`, `payment: {method, status, ...}` | One doc per storefront order. `format` is a snapshot of the product's format at order time (not a live join), matching how `name`/`unitPrice` are already snapshotted. `partnerPhone`/`partnerAddress` are likewise a snapshot of the partner's profile at order time (a single formatted string for the address, not the structured object) — see below. `deliveryDate` (sprint 07) is set by hand by admin when confirming an order — ad-hoc, not a recurring schedule. `fulfilledAt` (sprint 07) is stamped automatically when an order is marked "livrée," so the storefront can show a real date instead of just the status. `payment` is written once at order creation and never mutated afterward — see below |
 | `config/promo` | `active: boolean`, `headline: string`, `description?: string`, `productId?: string`, `startDate?: string`, `endDate?: string` | Single active-or-not storefront promo (sprint 06) — no rotation/multiple-banner queue. Shown on `/storefront` when `active` and (if set) within `startDate`/`endDate`. Admin-only write, but **signed-in read** (unlike `config/parametres`, which is admin/staff-only) — see [rbac.md](rbac.md) and the `config/promo` exact-path rule ahead of the `config/{doc}` wildcard in `firestore.rules` |
+| `config/exchangeRate` | `fcPerUsd: number`, `fetchedAt: string` (ISO) | Cached FC/USD rate (sprint 23), fetched client-side from `open.er-api.com` (ExchangeRate-API, free tier, no key) whenever the cached value is more than 24h old. Falls under the generic `config/{doc}` rule — admin/staff read, **admin-only write** — so a stale rate simply waits for an admin session to refresh it; a staff session's refresh attempt is caught and ignored client-side, no `firestore.rules` change |
 
 `firestore.indexes.json` defines a composite index on
 `orders(partnerId ASC, createdAt DESC)` for the "my orders" query.
@@ -111,6 +112,46 @@ webhook — see [flows.md](flows.md#payment--pawapay-mobile-money) for why).
 Swapping the stub bodies for real `fetch()` calls with a server-only
 Bearer token is the only change needed once credentials exist; nothing
 about the client flow or the `orders.payment` shape changes.
+
+## Staff poste & per-person bonus tracking (sprint 17)
+
+A staff account's `poste` is one of `"Directeur de Production"`,
+`"Chargée de Commercialisation"`, or `"Personnalisé"` — set at invite
+time (auto-fills the matching `menus`) or afterward from the
+dashboard's "Équipe (staff)" card.
+
+**This is two things, not one.** `poste` is a cosmetic label and a UI
+`menus` preset — but `firestore.rules` also reads it directly to scope
+data access per collection:
+
+- `"Directeur de Production"` → read/write on `producteurs`,
+  `approvisionnements`, `productions`, `stockMP`. Denied on
+  `clients`/`ventes`/`marketing`/`products`/`orders`/`charges`.
+- `"Chargée de Commercialisation"` → read/write on `clients`, `ventes`,
+  `marketing`, `products`, `orders`. Denied on the production
+  collections and `charges`.
+- No `poste` set, or `"Personnalisé"` → unchanged from before this
+  sprint: full read/write on every internal collection, `menus` is
+  UI-only. This is deliberate, not a gap — see below.
+
+**Opt-in, never a migration.** Every staff account that existed before
+this sprint keeps exactly the access it had — assigning a specific
+named poste is something admin does per person, on purpose. This is
+why there's no "everyone gets scoped" cutover: an account only becomes
+data-scoped the moment admin picks a poste for it.
+
+**`staffUid` on `productions`/`ventes`.** Entering a production lot or
+a sale no longer asks for a `responsable`/`commerciale` name to type —
+it's auto-filled from the logged-in account, and a `staffUid` is
+stamped alongside it. The dashboard's per-person bonus cards filter
+`productions`/`ventes` by `staffUid` to compute each person's own
+prime/commission; anything with no matching `staffUid` (pre-sprint-17
+data, or logged by an unscoped/admin account) shows as a "Non attribué"
+line so the org-wide total still reconciles instead of quietly
+excluding it.
+
+See [rbac.md](rbac.md#poste-based-data-scoping-sprint-17) for the exact
+`firestore.rules` shape and how it was verified.
 
 ## Order → ventes bridge
 

@@ -43,3 +43,11 @@ restarted per milestone.
 | 14 | [Storefront self-service: profile, order & product detail](<[DONE] 14-storefront-self-service.md>) | Done |
 | 15 | [WhatsApp order notifications](15-whatsapp-notifications.md) | Todo — from 2026-08-14 kickoff |
 | 16 | [Boutique verification (call-confirmation KYC)](<[DONE] 16-boutique-verification.md>) | Done |
+| 17 | [Staff poste, per-person bonus tracking, data-level enforcement](<[DONE] 17-staff-poste-data-enforcement.md>) | Done |
+| 18 | [Dashboard IA rework, data/logic fixes, KYC review, password reset](<[DONE] 18-dashboard-ia-data-rethink.md>) | Done |
+| 19 | [Record detail modals + sidebar sub-nav shortcuts](<[DONE] 19-record-detail-modals-sidebar-shortcuts.md>) | Done |
+| 20 | [Parcours production funnel view + responsive modals](<[DONE] 20-parcours-production-funnel.md>) | Done |
+| 21 | [Real-number calculation breakdowns in aggregate-value modals](<[DONE] 21-calculation-breakdowns.md>) | Done |
+| 22 | [Sidebar grouping, inline Parcours details, export card repositioned](<[DONE] 22-sidebar-grouping-parcours-inline-export-move.md>) | Done |
+| 23 | [Automated FC→USD currency exchange + Promotion as its own sidebar item](<[DONE] 23-currency-exchange-promotion-menu.md>) | Done |
+| 24 | [Self-service "Mon profil" for admin/staff accounts](<[DONE] 24-my-profile-self-update.md>) | Done |

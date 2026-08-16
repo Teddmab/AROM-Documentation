@@ -59,15 +59,68 @@ individual, PR-sized sprints.
   their order, and open a detail sheet for any order or product instead
   of a bare list. See [sprints/07](<sprints/[DONE] 07-storefront-order-tracking.md>)
   and [sprints/14](<sprints/[DONE] 14-storefront-self-service.md>).
+- **Staff data-level scoping** (was #1 below) — **partial**. A staff
+  account assigned `"Directeur de Production"` or `"Chargée de
+  Commercialisation"` is now genuinely restricted at the
+  `firestore.rules` level to their department's collections, not just
+  hidden in the UI. Accounts with no poste (or `"Personnalisé"`) are
+  unchanged — still full access, `menus` still UI-only for them. See
+  [rbac.md](rbac.md#poste-based-data-scoping-sprint-17) and
+  [sprints/17](<sprints/[DONE] 17-staff-poste-data-enforcement.md>).
+- **Dashboard information architecture and several data/logic gaps.**
+  Primes & personnel and Commercialisation (the two sections that had
+  stacked 5-6 cards into one scroll) now use tabbed sub-navigation. The
+  Campagne/Du/Au filter bar now actually filters on-screen data
+  (previously export-only); "Stock cumulé" sums in chronological order,
+  not insertion order; `charges` has an admin card (previously no UI
+  at all); campaign dates in Paramètres ERP are editable; Exécutif has
+  a real trend chart (`recharts` was installed but unused); Boutiques
+  partenaires shows the CNI/RCCM collected at signup next to the
+  "Vérifié" toggle, so admin has something to review, not a blind
+  toggle. See
+  [sprints/18](<sprints/[DONE] 18-dashboard-ia-data-rethink.md>).
+- **Password reset**, missing entirely before. "Mot de passe oublié ?"
+  on `/login`. See
+  [sprints/18](<sprints/[DONE] 18-dashboard-ia-data-rethink.md>).
+- **Every dashboard table row and KPI tile now opens a detail modal**
+  explaining what the figure is and where it's collected, with
+  edit/delete for the 11 tables backed by a real Firestore record. See
+  [sprints/19](<sprints/[DONE] 19-record-detail-modals-sidebar-shortcuts.md>).
+- **A "Parcours production" funnel view** connects Approvisionnement →
+  Production → Stock → Commercialisation as one page, using figures
+  already computed elsewhere (no new data entry) — the aggregate
+  answer to "show the product's journey," distinct from literal
+  per-batch traceability (roadmap #18, still not started). Every modal
+  in the app is also now a centered dialog on desktop instead of a
+  mobile-style bottom sheet at every width. See
+  [sprints/20](<sprints/[DONE] 20-parcours-production-funnel.md>).
+- **Aggregate-value modals now show a real calculation trail**, not
+  just the abstract formula — Résultat brut, Marge brute, Rendement
+  sur coûts, and a dozen other derived figures each show the actual
+  current numbers from Approvisionnement/Production/Commercialisation
+  that produced them, ending in the stated value. See
+  [sprints/21](<sprints/[DONE] 21-calculation-breakdowns.md>).
+- **Sidebar redundancy fixed**: Approvisionnement/Production/Stock/
+  Commercialisation now group visually under "Parcours production"
+  instead of standing as five near-duplicate top-level items; Parcours'
+  "Voir le détail" expands inline with the clicked card highlighted
+  instead of navigating away; every page's export card moved from the
+  top (where it read as the primary filter) to the bottom. See
+  [sprints/22](<sprints/[DONE] 22-sidebar-grouping-parcours-inline-export-move.md>).
+- **Automated FC→USD conversion** on summary monetary figures (header,
+  KPI tiles, Exécutif/Finances/KPI stratégiques tables) — a daily rate
+  cached in `config/exchangeRate`, no manual lookup needed. "Promotion"
+  also moved out of Commercialisation's tabs into its own sidebar item
+  under "Parcours production," matching sprint 22's treatment of the
+  other four. See
+  [sprints/23](<sprints/[DONE] 23-currency-exchange-promotion-menu.md>).
+- **Self-service "Mon profil"** for admin/staff, mirroring the
+  storefront partner's own profile page — click the header's name/role
+  to rename yourself or send a password-reset email. See
+  [sprints/24](<sprints/[DONE] 24-my-profile-self-update.md>).
 
 ## Security & correctness
 
-1. **Staff data-level scoping.** `firestore.rules` currently grants any
-   `staff` account read/write on *all* internal ERP collections regardless
-   of their `menus`. Menu scoping is UI-only today (see
-   [rbac.md](rbac.md)). Fine for a small trusted team; worth tightening
-   with per-collection role checks (or a `menus`-aware rule) before staff
-   headcount grows past "everyone trusts everyone."
 2. **No email verification / password reset flow** in the UI. Firebase
    Auth supports both; `signInWithEmailAndPassword` /
    `createUserWithEmailAndPassword` are wired but nothing calls
@@ -87,12 +140,14 @@ individual, PR-sized sprints.
    urgent at current scale; worth knowing before it isn't.
 7. **No admin UI for *managing* existing accounts** — partially closed.
    *Creating* an admin/staff account no longer needs the CLI
-   (invite-link signup, see Done above), and *partner* accounts now
-   have an admin-facing list (sprint 16's "Boutiques partenaires" card —
-   name, contact, address, a verification toggle). Still CLI-only:
-   listing, deactivating, or changing the role of an **admin/staff**
-   account (`AROM-Backend/scripts/list-users.mjs` + a manual Firestore
-   console edit) — the boutiques card doesn't cover internal accounts.
+   (invite-link signup, see Done above), *partner* accounts have an
+   admin-facing list (sprint 16's "Boutiques partenaires" card — name,
+   contact, address, a verification toggle), and *staff* accounts have
+   one too (sprint 17's "Équipe (staff)" card — name, email, poste
+   assignment). Still CLI-only: listing all fields, deactivating, or
+   changing the *role* of an admin/staff account
+   (`AROM-Backend/scripts/list-users.mjs` + a manual Firestore console
+   edit) — neither card covers those.
 8. **`reset()` in the ERP store is now a no-op** (with a toast pointing to
    admin scripts) rather than actually clearing data — intentional, since
    the old "reset to seed" behavior would have wiped shared, live
@@ -123,6 +178,60 @@ individual, PR-sized sprints.
     `CLOUDFLARE_ACCOUNT_ID` as GitHub repo secrets before pushes to
     `main` actually deploy. See
     [runbook.md](runbook.md#frontend-deploys) for exactly what's needed.
+
+## Backlog toward viable V1
+
+Surfaced by a 2026-08-15 audit alongside [sprints/18](<sprints/[DONE] 18-dashboard-ia-data-rethink.md>)
+(dashboard IA/data rework) — real gaps, deliberately not bundled into
+that sprint because each is bigger scope on its own. In rough priority
+order:
+
+12. **Storefront inventory / stock-out prevention.** `products` has no
+    `stock` field at all — the storefront quantity stepper only floors
+    at 0, with no upper bound tied to `computed.stockPF` (the real
+    finished-goods count, which lives only in the internal ERP Stock
+    tab, completely disconnected from the storefront catalog). A
+    partner can order more bottles than physically exist. Needs a
+    `stock` field on `products`, a way to set it from the Catalogue
+    card, and a checkout-time validation — real operational risk at
+    production scale.
+13. **Full admin/staff account management UI.** Deactivating an
+    account or changing its role is still CLI-only
+    (`scripts/list-users.mjs` + a manual Firestore console edit).
+    Sprint 16/17's "Boutiques partenaires"/"Équipe" cards cover
+    verification and poste assignment, not this. Same gap as roadmap
+    #7 above, restated here because it's part of the same "what's
+    missing for V1" audit.
+14. **New-boutique-signup notification.** Sprint 18 added an
+    unverified-first sort to Boutiques partenaires so new signups
+    aren't buried alphabetically, but there's still no push/email
+    alert when one signs up — admin only finds out by opening the
+    dashboard.
+15. **`recharts` beyond the one Exécutif trend chart** (sprint 18).
+    Commercialisation, Finances, and Stock all still present their
+    numbers as tables only; each could get a real chart the same way
+    Exécutif just did.
+16. **Table pagination/search.** Every table in the dashboard (ventes,
+    productions, invites, …) renders its full unfiltered array with no
+    paging or search. Not urgent at current scale (a few dozen rows
+    per collection) but will need addressing as a campaign's data
+    grows.
+17. **Email verification.** `sendEmailVerification` is unused —
+    nothing confirms a signup's e-mail address is real, for any role.
+18. **Literal batch traceability** — still not started, distinct from
+    the item below. Raised alongside sprint 19: group Approvisionnement,
+    Production, Stock, and Commercialisation under one place and let
+    admin see one physical batch's path from raw fruit receipt through
+    to sale. The current data model has no linking fields between
+    those four collections (a `Production` doc doesn't reference which
+    `Approvisionnement` receipt(s) it consumed, `stockMP` doesn't
+    reference the production lot that generated it, etc.), so this
+    needs a real data-model design pass — deciding what a "batch" is
+    and how it's threaded through four collections that were each
+    designed independently — before any UI grouping is meaningful.
+    [Sprint 20](<sprints/[DONE] 20-parcours-production-funnel.md>)
+    answered the underlying "journey" ask a different way (see below)
+    without starting this.
 
 ## From the 2026-08-14 kickoff meeting (client: Ethical Mine)
 
