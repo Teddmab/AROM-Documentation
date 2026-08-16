@@ -94,6 +94,12 @@ individual, PR-sized sprints.
   in the app is also now a centered dialog on desktop instead of a
   mobile-style bottom sheet at every width. See
   [sprints/20](<sprints/[DONE] 20-parcours-production-funnel.md>).
+- **Aggregate-value modals now show a real calculation trail**, not
+  just the abstract formula — Résultat brut, Marge brute, Rendement
+  sur coûts, and a dozen other derived figures each show the actual
+  current numbers from Approvisionnement/Production/Commercialisation
+  that produced them, ending in the stated value. See
+  [sprints/21](<sprints/[DONE] 21-calculation-breakdowns.md>).
 
 ## Security & correctness
 
