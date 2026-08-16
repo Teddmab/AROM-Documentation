@@ -100,6 +100,13 @@ individual, PR-sized sprints.
   current numbers from Approvisionnement/Production/Commercialisation
   that produced them, ending in the stated value. See
   [sprints/21](<sprints/[DONE] 21-calculation-breakdowns.md>).
+- **Sidebar redundancy fixed**: Approvisionnement/Production/Stock/
+  Commercialisation now group visually under "Parcours production"
+  instead of standing as five near-duplicate top-level items; Parcours'
+  "Voir le détail" expands inline with the clicked card highlighted
+  instead of navigating away; every page's export card moved from the
+  top (where it read as the primary filter) to the bottom. See
+  [sprints/22](<sprints/[DONE] 22-sidebar-grouping-parcours-inline-export-move.md>).
 
 ## Security & correctness
 
