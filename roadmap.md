@@ -82,6 +82,18 @@ individual, PR-sized sprints.
 - **Password reset**, missing entirely before. "Mot de passe oublié ?"
   on `/login`. See
   [sprints/18](<sprints/[DONE] 18-dashboard-ia-data-rethink.md>).
+- **Every dashboard table row and KPI tile now opens a detail modal**
+  explaining what the figure is and where it's collected, with
+  edit/delete for the 11 tables backed by a real Firestore record. See
+  [sprints/19](<sprints/[DONE] 19-record-detail-modals-sidebar-shortcuts.md>).
+- **A "Parcours production" funnel view** connects Approvisionnement →
+  Production → Stock → Commercialisation as one page, using figures
+  already computed elsewhere (no new data entry) — the aggregate
+  answer to "show the product's journey," distinct from literal
+  per-batch traceability (roadmap #18, still not started). Every modal
+  in the app is also now a centered dialog on desktop instead of a
+  mobile-style bottom sheet at every width. See
+  [sprints/20](<sprints/[DONE] 20-parcours-production-funnel.md>).
 
 ## Security & correctness
 
@@ -182,18 +194,20 @@ order:
     grows.
 17. **Email verification.** `sendEmailVerification` is unused —
     nothing confirms a signup's e-mail address is real, for any role.
-18. **Batch traceability / "journey" view.** Raised alongside sprint 19:
-    group Approvisionnement, Production, Stock, and Commercialisation
-    under one place and let admin see a single batch's path from raw
-    fruit receipt through to sale. Not started — the current data
-    model has no linking fields between those four collections (a
-    `Production` doc doesn't reference which `Approvisionnement`
-    receipt(s) it consumed, `stockMP` doesn't reference the production
-    lot that generated it, etc.), so this needs a real data-model
-    design pass — deciding what a "batch" is and how it's threaded
-    through four collections that were each designed independently —
-    before any UI grouping is meaningful. Bigger than a menu
-    reorganization.
+18. **Literal batch traceability** — still not started, distinct from
+    the item below. Raised alongside sprint 19: group Approvisionnement,
+    Production, Stock, and Commercialisation under one place and let
+    admin see one physical batch's path from raw fruit receipt through
+    to sale. The current data model has no linking fields between
+    those four collections (a `Production` doc doesn't reference which
+    `Approvisionnement` receipt(s) it consumed, `stockMP` doesn't
+    reference the production lot that generated it, etc.), so this
+    needs a real data-model design pass — deciding what a "batch" is
+    and how it's threaded through four collections that were each
+    designed independently — before any UI grouping is meaningful.
+    [Sprint 20](<sprints/[DONE] 20-parcours-production-funnel.md>)
+    answered the underlying "journey" ask a different way (see below)
+    without starting this.
 
 ## From the 2026-08-14 kickoff meeting (client: Ethical Mine)
 
