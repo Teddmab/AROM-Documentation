@@ -185,10 +185,14 @@ migration happens.
 
 **Not yet implemented, on purpose** (do not build ahead of real need):
 order reservation, sale deduction, cancellation release, expiry, forecasts,
-margins, the automation monitor screen, a generic inventory engine. The
-Worker cron job below remains a *future reconciliation* mechanism only —
-nothing in this batch depends on it running, and normal stock visibility
-never waits for its poll interval.
+margins, the automation monitor screen, a generic inventory engine. Design
+for reservation/sale-deduction/cancellation-release is now approved — see
+"Reservation and balance projections" below — but still unbuilt as of this
+writing; expiry and forecasts/margins remain genuinely out of scope. The
+Worker cron job below remains a *future reconciliation* mechanism only,
+now confirmed **not** the reservation mechanism itself either (see that
+section) — nothing in this batch depends on it running, and normal stock
+visibility never waits for its poll interval.
 
 ### `automationRuns/{id}` — the operations/audit log the monitor screen reads
 
@@ -210,108 +214,390 @@ for Mombongo — a dedicated `automationWorker: true` claim on a bootstrap
 service account, never `isAdmin()` directly, so a compromised admin session
 can't forge a fake "success" row.
 
-### Reservation — a field on `orders`, not a new collection
+### Reservation and balance projections — approved architecture (Sprint 08, 2026-09; not yet implemented)
 
-Proposed: `orders/{id}.stockReservation: { status: "reserved" | "failed" |
-"released", items: [{ productId, quantity }], attemptedAt }`. Keeping it
-on the order doc (rather than a separate `reservations` collection) means
-"is this order's stock accounted for" is answerable from one doc read,
-matching how `orders.payment` is already a nested map rather than its own
-collection.
+Supersedes the single-field `orders.stockReservation` sketch above and the
+Worker-cron-driven timing in "The Cloudflare Worker cron job" below.
+Approved after a read-only audit + design pass (see the Sprint 08 decision
+report for the full audit trail); nothing below is built yet.
 
-**Open question:** what does "reserve" actually decrement? There's no
-`products.stock` field today (`roadmap.md #12` — storefront inventory has
-been a known, unstarted gap). Reservation logic needs to read `stockPF`'s
-running balance per format, which means this automation depends on the
-production-stock automation already existing and being trustworthy — build
-order matters, this can't ship first.
+**Why not just sum `stockPF` live.** A Firestore transaction can `get()` a
+bounded set of documents by reference — with real optimistic-concurrency
+protection — but it cannot run a consistent, contention-safe aggregation
+query inside that same transaction. Two concurrent reservation attempts
+could each query-sum "5 available," and both succeed, overselling. A
+maintained balance *document*, read and written by reference inside the
+transaction, is required — not an optimization, a correctness requirement.
 
-## Next lifecycle: order → reservation → fulfilment (documented, 2026-09; not implemented)
+#### Two balance projections, both fed by the same authoritative event
 
-Corrects and supersedes steps 2-4 of "The Cloudflare Worker cron job"
-below, whose original sketch wrote a `stockPF` Sortie row at *reservation*
-time. Nothing today implements either version — no Sales/reservations
-batch has shipped yet — so there is no migration to do, only a clearer
-target to build against next time this area is picked up:
+**`stockBalance/{format}`** — exactly 3 documents (`500ml`/`330ml`/`300ml`,
+`stockPF`'s own no-space convention — see "Format canonicalization"
+below), the single global contention point:
+
+| Field | Type | Notes |
+|---|---|---|
+| `format` | `"500ml"` \| `"330ml"` \| `"300ml"` | Matches the doc ID |
+| `onHand` | number | Mirrors `stockPF`'s own Entrée−Sortie balance for this format |
+| `reserved` | number | Sum of every not-yet-released/fulfilled reservation's quantity for this format |
+| `updatedAt` | string (ISO) | |
+
+**`stockLotBalance/{productionId}_{format}`** — one document per
+(released production lot, format) combination, preserving end-to-end lot
+traceability without requiring the order/storefront layer to ever know a
+lot exists:
+
+| Field | Type | Notes |
+|---|---|---|
+| `productionId` | string | |
+| `qualityControlId` | string | The releasing control — same reference `stockPF`'s own Entrée row for this lot carries |
+| `lot` | string | Denormalized label, same convenience `qualityControls.lot` already provides elsewhere |
+| `format` | `"500ml"` \| `"330ml"` \| `"300ml"` | |
+| `onHand` | number | |
+| `reserved` | number | |
+| `releasedAt` | string (ISO) | The releasing control's own `date` |
+| `updatedAt` | string (ISO) | |
+
+Neither document stores a calculated `available` field — it is always
+`onHand − reserved`, computed at read time, so it can never drift from its
+own inputs by construction.
+
+**Both projections are written in the SAME transaction as the existing,
+already-shipped `stockPF` Entrée write** (`AROM-Mobile`'s
+`qualitySync.ts`'s `syncOne`, extended, not replaced): a QC release
+increments `stockBalance/{format}.onHand` and creates/increments
+`stockLotBalance/{productionId}_{format}.onHand` for every format present,
+alongside the Entrée row it already writes today. One authoritative event,
+three consistent effects, one transaction.
+
+#### FIFO lot allocation
+
+A reservation (order confirm) or a direct sale allocates across
+`stockLotBalance` documents automatically, never asking the customer or
+partner to choose a lot:
+
+1. Order by the releasing control's `releasedAt` timestamp, oldest first.
+2. Deterministic tie-breaker on exact-equal timestamps: `productionId`
+   (equivalently, the `stockLotBalance` doc ID) ascending — never
+   insertion order, never "whichever the query happened to return first."
+3. Skip a lot whose `available` (`onHand − reserved`) is zero.
+4. A single format's requested quantity may span multiple lots.
+5. A lot with no released, terminal head control (unreleased, still in
+   quarantine, or rejected) never has a `stockLotBalance` document at
+   all — nothing to skip, it was never eligible to begin with.
+
+The resulting allocation is recorded exactly, not re-derived later:
+
+```
+orders/{id}.reservation = {
+  status: "reserved" | "released" | "fulfilled",
+  items: [
+    {
+      format,
+      quantity,
+      allocations: [
+        { productionId, qualityControlId, quantity }
+      ]
+    }
+  ],
+  reservedAt,
+  reservedByUid
+}
+```
+
+`orders.items` (the existing, customer-facing line items) is unchanged —
+`reservation` is an additive field, same shape-of-change as `payment`
+before it. Lot selection never appears in any order-facing UI, mobile or
+web; it is an internal allocation detail recorded for traceability and
+consumed verbatim at fulfilment (so fulfilment decrements exactly the lots
+that were actually reserved, never re-running FIFO a second time).
+
+#### Trusted write boundary — reused Worker pattern, not client writes, not Cloud Functions
+
+**Rejected: client-authored Firestore writes validated by Rules alone**
+(the originally-proposed Tier 1/Tier 2 rules strategy). Proving `reserved`
+increments by exactly the right amount, choosing a FIFO allocation, and
+validating prices/totals against live `products` data are all real
+business logic a Rules expression is the wrong tool to reimplement, and a
+Rules-only design would have to either trust client-computed totals
+(exactly what the audit warned against) or hand-write brittle
+per-array-sum expressions Firestore's rules language doesn't cleanly
+support.
+
+**Approved: reuse the existing `/api/mombongo/*` trusted-server-route
+pattern**, already shipped and running in the same Cloudflare Worker this
+app deploys to — confirmed capable during the Sprint 08 audit, not merely
+assumed:
+
+- **Token verification without the Admin SDK**: `verifyFirebaseIdToken.ts`
+  calls Google's own `accounts:lookup` REST endpoint directly over plain
+  `fetch` — the Admin SDK doesn't run in this Worker (gRPC/Node-internals
+  dependency), so this is the real, already-proven substitute, not a new
+  risk.
+- **Transactions without the streaming SDK**: `firebase/firestore/lite`
+  (via `serverDb.ts`) — REST-based, one-shot calls, no `onSnapshot`
+  (which genuinely hangs in this Worker runtime) — **does** export
+  `runTransaction`/`writeBatch` with the identical contract and guarantees
+  the full SDK documents (Firestore transactions are a server-coordinated
+  REST protocol; only real-time listening needs a persistent stream).
+  Verified directly against the installed package's own type declarations
+  during this audit, not assumed from the full SDK's behavior.
+- **A dedicated, narrow system identity** signs in and performs the
+  transaction — mirroring `mombongoSystemAuth.ts`'s
+  `signInAsMombongoSystem()` exactly, but its own separate identity
+  (`inventoryService: true` custom claim, its own provisioning script,
+  its own env-var-sourced credentials) — never reusing the Mombongo
+  identity for an unrelated domain, same "narrow, single-purpose"
+  principle that identity was built on.
+
+New TanStack Start server routes (`src/routes/api/inventory/*`), each
+following `create-invoice.ts`'s exact shape (`createFileRoute` +
+`server.handlers.POST`):
+
+- `confirm-order` — pending → confirmed, reserve.
+- `cancel-order` — confirmed → cancelled, release.
+- `fulfil-order` — confirmed → fulfilled, consume reservation, Sortie, vente.
+- `direct-sale` — a manual (no-order) sale, same trusted deduction path.
+
+Each handler: verifies the caller's ID token → loads their `users/{uid}`
+profile (via the system identity, mirroring `verifyMombongoCaller.ts`) →
+checks `active == true` and an authorized poste/role for the specific
+action → loads the current `orders`/`products` state itself (never trusts
+client-sent totals/formats/prices/allocations) → canonicalizes formats →
+runs one `runTransaction` doing the real work → returns a plain-language
+result (success, or a structured insufficient-stock/error response) →
+never leaves a partial write on any failure path (a transaction either
+fully commits or writes nothing).
+
+#### Authorization
+
+| Action | Allowed | Denied |
+|---|---|---|
+| Order confirm/cancel/fulfil, direct sale | `isAdmin()`, `isCommercialStaff()` (Chargée de Commercialisation / mobile SALES) | Personnalisé/unscoped, missing/unknown poste, Agent de collecte, a partner calling this endpoint directly, inactive accounts |
+| QC release (existing, extended to also write both balance projections) | `isAdmin()`, `isProductionStaff()` (unchanged from the authorization-audit batch) | Same denial set as `stockPF` create today |
+
+Partners keep their existing, unchanged path: creating their own `pending`
+order, and cancelling their own still-`pending` order — neither of those
+touches a reservation (nothing is reserved until staff confirm), so
+nothing here narrows what a partner could already do.
+
+#### Order confirmation (pending → confirmed)
+
+1. Aggregate the order's `items` by canonical format.
+2. Validate every `productId`/`format` against live `products` data —
+   never trust the order's own snapshot for this decision, only for
+   display.
+3. Inside one transaction: `tx.get()` every relevant `stockBalance/{format}`
+   and candidate `stockLotBalance/*` document.
+4. If `available < requested` for **any** format, abort the whole
+   transaction — the order stays `pending`, nothing is reserved anywhere,
+   and the response names the exact requested/available/missing quantity
+   per affected format (see "UX" below).
+5. Otherwise: allocate FIFO per format, increment `stockBalance.reserved`
+   and every selected `stockLotBalance.reserved`, write
+   `orders/{id}.reservation` (status `"reserved"`, exact allocations,
+   `reservedByUid`), set `orders.status = "confirmed"`.
+
+`onHand` never changes at this step, on any document.
+
+#### Order cancellation (confirmed → cancelled)
+
+Requires `reservation.status == "reserved"` (read inside the same
+transaction, before any write — a retry that finds it already
+`"released"` no-ops rather than double-releasing). Decrements
+`stockBalance.reserved` and every allocated `stockLotBalance.reserved` by
+the recorded allocation, sets `reservation.status = "released"`,
+`orders.status = "cancelled"`. `onHand` never changes.
+
+#### Order fulfilment (confirmed → fulfilled)
+
+Requires `reservation.status == "reserved"`. Re-verifies the recorded
+allocation against current `stockBalance`/`stockLotBalance` reserved
+quantities (defensive — should always match, since nothing else can alter
+a `"reserved"` reservation), then in one transaction: decrements
+`stockBalance.reserved` **and** `.onHand`, and each allocated
+`stockLotBalance.reserved` **and** `.onHand`; writes one immutable
+`stockPF` Sortie row per (order × production lot × format) combination
+present in the allocation, deterministic id
+`PF-OUT-{orderId}-{productionId}-{format}`; writes the linked `ventes` row(s)
+via the existing `VTE-ORD-{orderId}-{idx}` deterministic bridge (unchanged
+shape); sets `reservation.status = "fulfilled"`, `orders.fulfilledAt`,
+`orders.status = "fulfilled"`.
+
+Stock is deducted **exactly once**, at fulfilment — never also at
+confirmation.
+
+#### Direct sales (no order)
+
+Both apps' existing manual-sale paths (`AROM-Production`'s
+`CommercialisationSection`, `AROM-Mobile`'s `sale-new`) are re-pointed at
+the same `direct-sale` trusted endpoint rather than writing `ventes`
+directly. FIFO-allocates automatically unless the staff member's own
+already-selected `productionIds` remain valid (both apps already collect
+this as a manual field — honored when still available, not overridden),
+validates availability first, and on success: writes the Sortie row(s),
+decrements both balance projections' `onHand` (never `reserved` — a
+direct sale has no reservation phase), writes the `vente` exactly once.
+On insufficient stock: the draft is preserved client-side, affected
+formats are identified, quantities can be adjusted — no partial sale, no
+partial stock effect, ever.
+
+No direct-sale path may write `stockPF`/`ventes` directly once this ships
+— that would silently bypass the same availability check the order path
+enforces.
+
+#### Idempotency
+
+Every handler reads the order/reservation's current state first and gates
+on it, exactly the lost-ack-safe shape already proven for QC release
+(`qualitySync.ts`'s `syncOne`): a retried confirm/cancel/fulfil call that
+finds the target state already reached no-ops rather than re-applying a
+delta; a genuine mismatch (recorded allocation disagrees with current
+balance state) raises a real, reported conflict rather than silently
+re-deriving one.
+
+#### Format canonicalization
+
+One shared, documented mapping — not scattered string replacement:
+`"500 ml" ↔ "500ml"`, `"330 ml" ↔ "330ml"`, `"300 ml" ↔ "300ml"`. An
+unrecognized format on either side is rejected, never coerced to a
+default. Lives in one module both apps' inventory-touching code imports
+(mirrors how `STOCKPF_FORMAT_BY_BOTTLE_KEY` already centralizes the
+`q500`/`q330`/`q300` ↔ `"500ml"` mapping on the receipt side — this is
+its sibling for the with-space/no-space product-facing convention).
+
+#### Not implemented, on purpose
+
+Partial fulfilment (no per-item status, no partial-delivery field — an
+order is fulfilled all at once or not at all, matching the schema and UI
+as they exist today). Reservation expiry (no duration, no warning, no
+payment-state interaction, no extension — a reservation lives until
+explicit cancellation or fulfilment, full stop, until AROM asks for
+otherwise and approves the specific parameters).
+
+#### Step B (built, 2026-09) — production packaging immutability boundary audit
+
+Step B (`AROM-Production`'s `applyQcReleaseReceipt`) derives the stockPF/
+stockLotBalance/stockBalance quantities it writes from `productions/{id}`'s
+own `q500`/`q330`/`q300` fields, read transactionally at the moment of
+receipt. The preferred invariant is: packaging may be corrected freely
+before a terminal quality control exists for a production, but once a
+terminal control (`decision: "liberer"` or `"rejeter"`) exists, packaging
+identity and quantities should no longer be changeable through any
+supported application flow — otherwise a production's own record and the
+immutable inventory movements already derived from it can silently
+diverge.
+
+**What's actually enforced today, and by what:**
+
+- **Application-level (the real boundary today):** grepped every write
+  path in both `AROM-Mobile` and `AROM-Production` (2026-09 hardening
+  audit) — `productions/{id}` has exactly one writer anywhere in either
+  app, `productionSync.ts`'s `syncOne`, and it is unconditionally
+  create-only: `if (existing.exists()) return;` before any `tx.set`. No
+  edit/correction screen for an existing production exists in either app.
+  So today, packaging is never changed after a production document first
+  syncs, let alone after a terminal control — this holds regardless of
+  whether any QC exists yet at all.
+- **Firestore Rules (not enforced today):** `productions/{id}`'s `update`
+  rule (`firestore.rules`) currently allows any admin/production-staff
+  identity to overwrite the whole document, unconditionally — Rules do
+  not check whether a terminal `qualityControls` document exists for this
+  `productionId`, because they structurally cannot cheaply: `qualityControls`
+  documents are keyed by their own id, not by `productionId`, so "does a
+  terminal control exist for this production" is a collection *query*
+  (`where("productionId", "==", id)`), and Firestore Rules cannot execute
+  queries or aggregates over a collection — only `get()`/`exists()` against
+  a single, already-known document path. There is no such fixed path here
+  (a production can have zero, one, or — before a control is chosen —
+  transiently more than one candidate control racing to become the terminal
+  one; see `qualitySync.ts`'s own candidate-query-then-transactional-reread
+  pattern for why that can't be collapsed to one deterministic id either).
+
+**Residual risk:** the Rules layer alone does not prevent a future code
+path (a not-yet-built production-correction screen, or a compromised/
+misused admin session) from editing `q500`/`q330`/`q300` on a production
+that already has inventory movements derived from its current values.
+Today this risk is theoretical, not reachable — no such edit path exists
+in either shipped app. It becomes real the moment one is built.
+
+**Deliberately not done in this pass** (would broaden this hardening
+step into a production-correction system, which is out of scope): adding
+a Rule that locks `q500`/`q330`/`q300` once first set (the simplest
+Rules-provable proxy — it doesn't need to know whether a QC exists at
+all, just whether the field was previously defined) or a denormalized
+`productions/{id}.hasTerminalControl` flag set by the same transaction
+that commits a terminal QC (closer to the preferred rule, but a new
+cross-collection write `qualitySync.ts` doesn't make today). Either is a
+reasonable follow-up; both require an explicit ADMIN decision on which
+production-correction workflow (if any) should remain possible, which
+this hardening pass does not make on its own.
+
+## Next lifecycle: order → reservation → fulfilment (documented 2026-09; approved architecture above; not yet implemented)
+
+The six principles below are unchanged in spirit from the original design
+pass and now fully specified in the approved architecture above — kept
+here as the short version:
 
 1. **Order confirmation creates a reservation, never a stock Sortie.**
-   Confirming an order (`orders.payment.status` reaching `"completed"`)
-   only ever writes `orders/{id}.stockReservation` (see "Reservation — a
-   field on `orders`" above) — no `stockPF` row of any kind is written at
-   this point. The physical, on-hand `stockPF` balance is untouched.
 2. **A reservation reduces *available* quantity, never *on-hand*
-   quantity.** "On-hand" is what `stockPF`'s own Entrée/Sortie ledger sums
-   to — the actual physical bottle count. "Available" is on-hand minus
-   every order's currently-`"reserved"` `stockReservation` quantity for
-   that format — a derived, read-time figure, never its own ledger row.
-   Every sales-facing screen must show *available*, never raw on-hand,
-   once reservations exist — showing on-hand would let two orders both
-   claim the same physical bottles.
-3. **Cancellation releases the reservation.** An order moving to
-   `"cancelled"` with a prior `"reserved"` `stockReservation` flips it to
-   `"released"` — still no `stockPF` write, since none was ever made for
-   it. Available quantity goes back up simply because the reservation no
-   longer counts against it; there is nothing to reverse in the ledger.
+   quantity.** Every sales-facing screen must show `onHand − reserved`
+   (available), never raw `onHand`, once this ships.
+3. **Cancellation releases the reservation**, on-hand untouched.
 4. **Fulfilment closes the reservation and creates exactly one immutable
-   Sortie.** Only when an order is actually fulfilled (delivered) does a
-   real `stockPF` Sortie row get written — one per format, a deterministic
-   id in the same spirit as the Entrée side (never `Crypto.randomUUID()`),
-   immutable once created (same create-only rule shape). This is the one
-   moment the on-hand balance actually decreases.
-5. **Fulfilment creates one linked vente.** The existing `VTE-ORD-*`
-   deterministic-id convention (step 4 of the cron job below) is the vente
-   this Sortie is linked to — one vente per fulfilled order, never one per
-   line item and never one per retry.
-6. **Retries can never deduct twice.** The Sortie write and the vente
-   write both use deterministic ids derived from the order (and format) —
-   a retried/replayed fulfilment attempt always targets the exact same
-   documents, and Firestore's create-only rule (no `update`/`delete`)
-   makes a second attempt a no-op. This is not a new mechanism — it's the
-   identical idempotency shape the Entrée side already proves out (see
-   "Idempotency, including the lost-ack case" above), applied to the
-   Sortie side once it exists.
+   Sortie per (order × lot × format)**, plus one linked vente per order —
+   this is the one moment on-hand actually decreases.
+5. **Fulfilment creates the linked vente(s) exactly once** — the existing
+   `VTE-ORD-*` deterministic-id bridge, unchanged.
+6. **Retries can never deduct twice** — deterministic ids everywhere, and
+   every handler gates on the current state it reads before writing.
 
 ## The Cloudflare Worker cron job
 
-New file, `AROM-Production/src/routes/api/automations/run.ts` (or a Nitro
-scheduled-task handler — exact wiring TBD against Nitro's `cloudflare-module`
-preset, confirmed feasible via `wrangler.jsonc`'s `triggers.crons`, not yet
-implemented). Every run, in order (each step only depends on the previous
-one's writes, never re-reads its own output mid-run) — **steps 2-3's
-Sortie-at-reservation-time sketch is superseded by "Next lifecycle" above;
-read that section first**:
+**Superseded as the reservation mechanism (Sprint 08, 2026-09).** Order
+confirm/cancel/fulfil and direct sales are now trusted, synchronous HTTP
+endpoints (see "Trusted write boundary" above) — a cron poll was never
+implemented and is no longer the plan for that path; a confirm action
+needs its availability answer in the same request, not on the next poll
+interval. What follows is now purely a *possible future reconciliation*
+job (detect drift between the ledger and the projections, e.g. after a
+manual Firestore console edit) — genuinely optional, nothing depends on
+it, and it has never been built. Step 1 below describes what QC release
+already does today (shipped, in `qualitySync.ts`), kept here only as
+history of the original sketch.
 
-1. Query `qualityControls` newly reaching `decision: "liberer"` since the
-   last successful run (needs a `processedForStockAt` marker field on
-   `qualityControls` to avoid reprocessing — same idempotency concern
-   `receptionSync.ts` already solved client-side, applied server-side
-   here), join back to the `productions/{productionId}` doc for the
-   bottle-format quantities → write `stockPF` Entrée rows (one per format)
-   + `stockMP` Sortie rows for the raw material consumed → log an
-   `automationRuns` row per lot released. A `productions` doc with no
-   quality control yet, or one still in `quarantaine`/`rejeter`, never
-   reaches this step — matches decision #3 above.
-2. Query `orders` where `payment.status` is newly `"completed"` and
-   `stockReservation` is unset → attempt reservation against `stockPF` →
-   write `stockPF` Sortie rows (or Ajustement) + `orders.stockReservation`
-   + an `automationRuns` row, `"needs-review"` if insufficient stock.
-3. Query `orders` newly `"cancelled"` with a prior `"reserved"`
-   `stockReservation` → write `stockPF` Entrée rows to release it → log.
-4. (Logged only, no write) Query `ventes` docs whose `numero` matches the
-   `VTE-ORD-*` deterministic-id pattern created since the last run → one
-   `automationRuns` row per delivery-triggered sale, `type:
-   "delivery-sale"`, `status: "success"` always (it already succeeded by
-   the time this job sees it) — purely for the monitor screen's visibility
-   promise, per decision #2 above.
+1. ~~Query `qualityControls` newly reaching `decision: "liberer"`...~~
+   Shipped a different way: the QC-release transaction itself writes the
+   `stockPF` Entrée row (and, once Sprint 08 ships, both balance
+   projections) synchronously, inside the same client transaction that
+   creates the releasing control — never via a polled Worker job. No
+   `processedForStockAt` marker field exists or is needed.
+2. ~~Query `orders` where `payment.status` is newly `"completed"`...~~
+   Superseded in full, not just in timing: reservation happens
+   synchronously inside `confirm-order`'s own trusted transaction (see
+   "Order confirmation" above), never on a poll interval, and is keyed off
+   the `pending → confirmed` status transition, not `payment.status`.
+3. ~~Query `orders` newly `"cancelled"`...~~ Superseded: `cancel-order`'s
+   trusted transaction does this synchronously.
+4. (Still potentially useful, unchanged in spirit) A read-only
+   reconciliation pass — e.g. confirm `stockBalance.onHand` still equals
+   the sum of that format's `stockPF` Entrée minus Sortie rows, and that
+   `stockBalance.reserved` still equals the sum of every `"reserved"`
+   order's allocation for that format — logged to `automationRuns` if it
+   ever finds drift. Not required for Sprint 08's own correctness (every
+   write path already keeps the projections consistent by construction);
+   valuable only as a safety net against manual/out-of-band data edits.
 
 ## Retry ("Réessayer" on the monitor screen)
 
-A new admin-only HTTPS route, `POST /api/automations/retry`, mirroring
-`verifyMombongoCaller.ts`'s existing pattern exactly (verify the caller's
-Firebase ID token, require `role === "admin"`) — re-runs step 2's
-reservation logic for exactly the one `automationRuns` doc id given,
-updating it to `success`/`resolvedAt` or leaving it `needs-review` again
-with an incremented `retryCount`.
+Superseded by Sprint 08's own idempotency model: since order confirm no
+longer runs on a poll interval, there is no separate `automationRuns`
+"needs-review" row to retry from a monitor screen — the confirm request
+itself either succeeds or reports the exact insufficient-stock detail
+synchronously (see "UX" in the Sprint 08 decision report), and the admin
+retries by re-attempting the same action once stock changes, same as any
+other trusted endpoint's error path elsewhere in this app
+(`verifyMombongoCaller.ts`'s callers included).
 
 ## Settings storage (`Paramètres opérationnels` / `Réglages de production`)
 
@@ -334,30 +620,49 @@ reading/writing what's already real.
   superseded). Still open: the `"Sortie"`/`"Ajustement"` shapes for
   reservation-release/sale-deduction, whose write predicate is a future
   batch's decision, not yet made.
-- `automationRuns/{id}` — admin read-only; write restricted to the new
-  `automationWorker` custom claim (provisioned the same one-time,
-  offline way `provision-mombongo-webhook-account.mjs` did for Mombongo).
-- `orders/{id}.stockReservation` — needs `isValidInvoiceTransition`-style
-  transition validation so a client can never forge a `"reserved"` status
-  directly; only the Worker identity and the retry route's own caller
-  identity (still the Worker, since retry re-runs server-side) may write
-  it.
+- `automationRuns/{id}` — only relevant if the optional future
+  reconciliation pass (see "The Cloudflare Worker cron job" above) is ever
+  built; admin read-only, write restricted to its own dedicated custom
+  claim. Not required for Sprint 08 itself.
+- `stockBalance/{format}` / `stockLotBalance/{productionId}_{format}` /
+  `orders.reservation` / `stockPF` Sortie rows — **no client-writable rule
+  at all**, by design (Sprint 08 decision: rejected client-write Rules
+  validation in favor of a trusted server route). `create`/`update` on
+  each is restricted to the new `inventoryService` custom claim only
+  (own provisioning script, own credentials — never reusing
+  `mombongoWebhook`), mirroring `harvestOffers`/`harvestInvoices`' own
+  "every write goes through the webhook identity, never a direct
+  `isAdmin()` write" shape more than it mirrors `stockPF`'s own
+  actor-authorized-client-write shape. `read` stays authorization-based
+  (`isAdmin()`/`isProductionStaff()`/`isCommercialStaff()`, matching
+  `stockPF`'s own read rule) since reading a balance is not a
+  business-logic decision the way writing one is.
 
 ## What's still genuinely open
 
-1. **Reservation failure UX**: the mockup's "Connexion nécessaire" pill on
-   CMD-1048 implies some reservation failures are about a stale/expired
-   session rather than genuinely insufficient stock. Default until told
-   otherwise: mockup flavor text, not a real distinct failure mode —
-   `automationRuns.message` stays one plain-French string, no sub-reason
-   enum. Cheap to add later if a real second failure mode shows up.
-2. **Polling interval**: proposed at 2 minutes, not yet load-tested against
-   real Worker invocation costs. Default until told otherwise: ship at 2
-   minutes, revisit only if it turns out to matter in practice.
-3. **Build order (proposed, not yet confirmed)**: production-stock (①,
-   now QC-gated per decision #3) must ship and be trusted before
-   reservation (②/③) can mean anything real. `Paramètres opérationnels` +
-   `Réglages de production` need no automation dependency at all — they're
-   a plain settings UI over `config/parametres` and could ship
-   independently of everything else in this document. `Automatisations`
-   depends on ① and ② both existing and being trusted with real data.
+Sprint 08's own decision pass (2026-09) resolved every item this section
+used to list (reservation failure UX, polling interval, Rules-vs-trusted-
+route strategy, partial fulfilment, reservation expiry) — see the
+"Reservation and balance projections" section above for each resolution.
+What remains genuinely open, after that pass:
+
+1. **Existing manual-sale UI flows still write `ventes` directly.**
+   `AROM-Production`'s `CommercialisationSection` and `AROM-Mobile`'s
+   `sale-new` need to be re-pointed at the new `direct-sale` trusted
+   endpoint (Sprint 08 step E) — until that ships, those two paths remain
+   capable of overselling even after the order path is protected. Not a
+   design gap, a sequencing one: flagged so it isn't forgotten between
+   steps C/D (order path) and E (direct sales).
+2. **What an admin does with a migration-reported unreservable historical
+   order.** The migration dry-run must report a confirmed order that
+   can't be fully reserved (per the approved architecture, never force it
+   negative) — but no resolution action is designed yet (manually adjust
+   the order? partially reserve what's available and flag the rest?
+   leave it unreserved and let fulfilment fail loudly instead?). Blocks
+   nothing about steps A-E; blocks only actually running the real
+   migration once the dry-run report comes back non-empty.
+3. **Build order.** Step A (schemas/canonical formats/migration dry-run)
+   before B (QC release writes both balance projections) before C/D
+   (order reservation/fulfilment, meaningless without B already trusted)
+   before E (direct sales) before F (UI). `Paramètres opérationnels` /
+   `Réglages de production` remain independent of all of this, as before.
