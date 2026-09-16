@@ -44,6 +44,24 @@ script needed, same as against live data. Emulator data is in-memory and
 resets when the emulator process stops (`--import`/`--export-on-exit`
 flags exist if persistence across restarts is ever wanted).
 
+**Seeing every emulator error, not just what the CLI prints.** The
+Firestore and Storage emulators are separate JVM processes; the Firebase
+CLI only streams a subset of their output to Terminal 1 above. Full
+per-request detail — including the exact rule line a `PERMISSION_DENIED`
+failed at — is written to `firestore-debug.log` / `storage-debug.log` in
+`AROM-Backend`'s working directory instead, silently, even when nothing
+prints to the terminal. Tail those live in another terminal while the
+emulators run:
+
+```
+# Terminal 4 (from AROM-Backend)
+tail -f firestore-debug.log storage-debug.log
+```
+
+`--log-verbosity DEBUG` on `emulators:start` does not change this — it
+only affects the Firebase CLI's own lifecycle logging, not where the
+Firestore/Storage JVM processes write their request-level errors.
+
 ## Creating an admin or staff account
 
 ```
