@@ -180,3 +180,62 @@ removal itself, and not yet done as of this update. See
   workflow (`pending → confirmed → fulfilled`), not a checkout — AROM
   staff confirm and fulfill manually for now.
 - **No deploy step for the frontend in CI.** See CI/CD above.
+
+## Mombongo integration — status (2026-09-17 stabilization session)
+
+Canonical spelling is **Mombongo** (not "Mombongoo"/"Mombongoo"/other
+variants seen in older notes). Full investigation:
+[mombongo-integration-audit.md](mombongo-integration-audit.md).
+
+**Committed, as of `AROM-Production` `main` `2db292a`** (previously existed
+only as uncommitted working-tree content since 2026-08-27/09-01, with no
+git history to recover it from): outbound calls (create/pay a producer
+invoice, browse harvest listings, submit/pay a harvest offer), the inbound
+webhook (`payment_complete`, `invoice_issued`), and the five
+`/api/mombongo/*` routes AROM-Mobile calls. Reviewed for signature
+verification (HMAC-SHA256, constant-time, fails closed), idempotency under
+repeated webhook delivery, and no secret leakage; 152 tests added, mocked
+at the Firestore/fetch boundary so they don't depend on Mombongo's own
+API being up. `firestore.rules`' `isMombongoWebhook()` custom-claim gate
+(`AROM-Backend`, already committed) is unchanged by this — the app code
+was versioned to match already-deployed Rules, not the other way round.
+
+**Integration contract**: the six boundary calls implemented today
+(`createExternalInvoice`, `createExternalInvoiceCheckout`,
+`getExternalPublishedListings`, `createExternalHarvestOffer`, and the two
+inbound webhook events) are documented as checked-in TypeScript shapes +
+fixtures in `AROM-Production/src/lib/payments/mombongoContract.ts`. This
+is the integration **as currently implemented, not a partner-approved
+spec** — Mombongo has not confirmed these shapes in writing, and several
+fields (`testMode` on checkout, in particular) are AROM's own assumption
+pending a real response to confirm against.
+
+**Known outage (Mombongo's side, not AROM's)**: as of this session,
+`createExternalInvoice` and `getExternalPublishedListings` on Mombongo's
+dev host (`europe-west1-mombongo-dev.cloudfunctions.net`) both return
+HTTP 500. This is a regression since 2026-08-31 (their own smoke-test
+script, `AROM-Backend/scripts/check-mombongo-deployment.mjs`, passed
+cleanly then) and is outside AROM's control — re-probed live during this
+session with the same result. No invoice created on Mombongo can reach
+AROM while this persists, independent of anything on AROM's side.
+
+**Deployment ownership**: the live Cloudflare Worker
+(`arom-production.purple-hat-3cb3.workers.dev`) was last deployed
+2026-09-01 — nothing committed since then, Mombongo-related or not
+(including this session's commits), is live yet. Redeploying it was
+explicitly out of scope for this stabilization session; see
+`mombongo-integration-audit.md` for the live-vs-committed diff this
+session found, and the session's own deployment-readiness report for
+what a future deploy needs.
+
+**`harvestInvoices` vs. a future partner customer-order flow — do not
+conflate these.** `harvestInvoices`/`harvestOffers` (Sprint DP) are AROM
+**buying** raw commodity on Mombongo's farmer marketplace — a distinct
+business relationship from `producerInvoices` (AROM paying a producer
+that submitted through AROM's own intake pipeline). Neither is the same
+thing as a Mombongo-driven **customer/partner order** against AROM's own
+storefront `orders`/`products` — that capability does not exist in any
+form today (confirmed by grep across all three repos) and is explicitly
+out of scope: Sprint 09 (the partner-order pilot) remains blocked on its
+own unmet approval gates (see `roadmap.md`) and is **not** touched or
+advanced by this Mombongo stabilization work.
