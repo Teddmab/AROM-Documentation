@@ -489,35 +489,107 @@ The owner reported having configured it. **Re-verified via `gh api repos/Teddmab
 
 The provisioning script printed the generated password to stdout — a
 live production credential in cleartext to any terminal/log/agent
-transcript. Rewritten: **[AROM-Backend PR #10](https://github.com/Teddmab/AROM-Backend/pull/10)** (branch `feat/harden-inventory-service-provisioning`, commit `effe409`, not merged).
+transcript. Rewritten: **[AROM-Backend PR #10](https://github.com/Teddmab/AROM-Backend/pull/10)** (branch `feat/harden-inventory-service-provisioning`, not merged — see the follow-up correction pass below for its current state; the `npx`/"overwritten" claims originally made in this paragraph were themselves corrected in that pass).
 
-- Password now only ever exists as an in-memory string, piped directly
-  into `wrangler secret put`'s stdin (spawned via `npx`, value never in
-  argv, never printed/logged), overwritten before the process exits.
 - An existing account is now **never** modified automatically (a
   deliberate change from the prior "self-correcting" re-run behavior) —
   only ever created when genuinely absent.
 - New `--dry-run` performs every real read and reports a plan; creates
   nothing.
-- 40 new tests (27 unit + 13 dependency-injected integration), 434/434
-  total passing.
-- **Ran only `--dry-run` against the real `arom-production-657f2`/
-  `arom-production` target** (explicitly authorized, read-only): account
-  confirmed absent, 0/3 secrets present, Cloudflare auth confirmed.
-  Separately confirmed the wrong-project and wrong-worker cases are
-  rejected before touching either service. Re-verified after: no account
-  created, secret list unchanged (still only the 2 pre-existing Mombongo
-  secrets). **Apply mode was not run.**
 - `runbook.md`'s "Inventory-service system account" section updated to
   match (correct project id in the example command, `--worker` now
   required, new re-run/`--dry-run`/`FIREBASE_WEB_API_KEY_VALUE` behavior
   documented) — same branch, not merged.
 
+## Post-review corrections to PR #10 + PR #23 split (2026-09-18, later same day)
+
+A review of the above pass found real gaps before it could be approved:
+the "already exists" abort was one generic outcome (misleading on a retry
+against a disabled partial attempt), the password secret was written
+*after* the less-critical email/API-key secrets rather than first, the
+credential-handling doc claimed JS "overwrites"/securely erases the
+password from memory (it cannot guarantee that), and `wrangler` was
+invoked in a way that could fall back to a network-fetched version on a
+cache miss. All four corrected on the same PR #10 branch:
+
+- **Three-way failure classification**: `decideAccountAction` now returns
+  `abort-exists` (healthy, active account), `abort-disabled` (deliberately
+  disabled, claim still correct — e.g. incident response), or
+  `abort-partial` (disabled AND a missing/wrong claim — reads as a failed
+  provisioning attempt, not a healthy account) instead of one generic
+  "exists" outcome. A retry can no longer misreport a partial failure as
+  a healthy account.
+- **Ordered, tracked failure recovery**: `PROVISIONING_STEPS` (create
+  account → set claim → verify claim → password secret → email secret →
+  API-key secret → profile doc) is now a real state machine — every step
+  is wrapped so a failure names exactly which step failed, which steps
+  completed first, and (via `buildRecoveryMessage`) gives recovery
+  guidance specific to that step, not a generic message. Any failure
+  after account creation disables (never deletes) the account. An
+  ambiguous `createUser` failure (client-side error, but the account was
+  actually created server-side) is now detected via a re-check rather
+  than assumed to mean nothing happened.
+- **Password-first ordering**: the password secret — the one value that
+  only ever exists in this process's memory — is now written to
+  Cloudflare immediately after claim verification, before the other two
+  secrets or the profile document.
+- **Accurate credential-handling language**: the prior claim that this
+  script "clears"/"overwrites" the password in memory is removed —
+  JavaScript gives no such guarantee. The real, honestly-stated guarantee:
+  the password is generated in memory, never intentionally logged,
+  persisted, or passed via argv; piped through stdin; references are
+  simply dropped after use. `SECRET_PUT_VALUE_CERTAINTY_NOTE` similarly
+  states plainly that a failed `wrangler secret put` cannot be proven to
+  have left no value in place — only a name's existence, never which
+  value is live, can be confirmed after the fact.
+- **Pinned wrangler**: `wrangler` is now an exact-pinned devDependency
+  (`4.134.0`, no `^`/`~` range); the script resolves and spawns
+  `node_modules/wrangler/bin/wrangler.js` directly via `node`, never
+  `npx` (which can silently fetch an arbitrary version from the registry
+  on a cache miss) — fails closed if the local install is missing.
+- **Tests**: fault-injection coverage added at every `PROVISIONING_STEPS`
+  boundary (proving the correct failed step / completed steps / disable
+  outcome, and that no secret value ever reaches a log line or the
+  serialized report), plus tests proving the pinned-wrangler path never
+  falls back to `npx` or a `PATH`-resolved binary. **AROM-Backend's full
+  suite (`npm run test:rules`, the only command that runs every unique
+  test file in this repo — a bare `npm test` skips the 4 files that need
+  the Firestore/Auth emulator): 464/464 passing**, no double-counting
+  across separate invocations. Re-ran `--dry-run` against the real
+  `arom-production-657f2`/`arom-production` target with the pinned local
+  wrangler (not `npx`): account still absent, 0/3 target secrets present.
+  `wrangler secret list --name arom-production` independently confirms
+  only the 2 pre-existing Mombongo secrets exist. **Apply mode was not
+  run against production.**
+- **PR #23 was mixing scopes** — inventory-service/environment
+  documentation together with unrelated Mombongo test-mode/go-live
+  guidance and a `.env.local`/compatibility-date build note that had been
+  accidentally swept in by an earlier broad `git add`. Split: PR #23 now
+  contains only `runbook.md`'s inventory-service/environment/cutover
+  content plus this file; the Mombongo/build-notes content was moved,
+  verbatim (byte-for-byte diffed), to a new branch and
+  **[AROM-Documentation PR #24](https://github.com/Teddmab/AROM-Documentation/pull/24)**.
+- **`production-rules` environment re-checked (Part A of this pass)**:
+  the owner reports having now configured it, and it does exist this
+  time (`gh api .../environments/production-rules` no longer returns
+  `total_count: 0`) — but **`protection_rules` is still an empty array
+  and `deployment_branch_policy` is still `null`**: no required
+  reviewers, no self-review prevention, no wait timer, and no branch
+  restriction are enforced yet, so in practice any branch could still
+  dispatch a deploy against it today. `deploy-rules-production.yml`'s
+  `environment: production-rules` line (confirmed via `git show
+  origin/main:...`, not a local branch) still references this same name
+  exactly. **This remains a stop condition** — the exact GitHub UI steps
+  are unchanged from the section above (Settings → Environments →
+  `production-rules` → Required reviewers + Prevent self-review +
+  restrict deployment branches to `main`).
+
 ## Revised cutover order (post-merge)
 
-1. **Configure the `production-rules` environment** (owner, GitHub UI —
-   steps above) — **still not done**, re-confirmed this pass. Not a
-   deploy; a repo-settings change only.
+1. **Finish configuring the `production-rules` environment** (owner,
+   GitHub UI — steps above) — the environment now exists, but still has
+   **no required reviewers and no branch restriction** as of this pass;
+   re-confirmed via `gh api`. Not a deploy; a repo-settings change only.
 2. Fix the IAM permission gap (grant
    `roles/serviceusage.serviceUsageConsumer`, or equivalent, to the
    `FIREBASE_SERVICE_ACCOUNT_KEY` service account on
@@ -533,8 +605,9 @@ transcript. Rewritten: **[AROM-Backend PR #10](https://github.com/Teddmab/AROM-B
    any time before real users need the trusted routes to work).
 
 ## Remaining explicit approval points
-- Configuring the `production-rules` environment (owner, GitHub Settings
-  — genuinely still outstanding).
+- Finishing the `production-rules` environment's protection (owner,
+  GitHub Settings — the environment exists now but still has no required
+  reviewers and no branch restriction, re-confirmed this pass).
 - Granting the IAM role for the deploy service account.
 - Merging AROM-Backend PR #10 (provisioning tooling).
 - Running the (now-hardened) inventory-service provisioning script for
