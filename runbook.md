@@ -44,6 +44,24 @@ script needed, same as against live data. Emulator data is in-memory and
 resets when the emulator process stops (`--import`/`--export-on-exit`
 flags exist if persistence across restarts is ever wanted).
 
+**Seeing every emulator error, not just what the CLI prints.** The
+Firestore and Storage emulators are separate JVM processes; the Firebase
+CLI only streams a subset of their output to Terminal 1 above. Full
+per-request detail — including the exact rule line a `PERMISSION_DENIED`
+failed at — is written to `firestore-debug.log` / `storage-debug.log` in
+`AROM-Backend`'s working directory instead, silently, even when nothing
+prints to the terminal. Tail those live in another terminal while the
+emulators run:
+
+```
+# Terminal 4 (from AROM-Backend)
+tail -f firestore-debug.log storage-debug.log
+```
+
+`--log-verbosity DEBUG` on `emulators:start` does not change this — it
+only affects the Firebase CLI's own lifecycle logging, not where the
+Firestore/Storage JVM processes write their request-level errors.
+
 ## Creating an admin or staff account
 
 ```
@@ -110,6 +128,76 @@ rm key.json
 
 List and revoke old keys with `gcloud iam service-accounts keys list
 --iam-account=arom-ci-deploy@arom-production.iam.gserviceaccount.com`.
+
+## Inventory-service system account (Sprint 08, Step B)
+
+`AROM-Production`'s `/api/inventory/qc-release` route signs in as a
+dedicated, narrow-privilege Firebase Auth account
+(`inventory-service@system.arom.cd`) to write `stockPF`/`stockBalance`/
+`stockLotBalance` — the only identity `firestore.rules`'
+`isInventoryService()` accepts for those writes. It carries exactly one
+custom claim (`inventoryService: true`) and a `users/{uid}` doc with
+`role: "system"` — never `admin`, never any `poste`, so it can never pass
+`isAdmin()`/`isAdminOrStaff()`/any staff-poste check anywhere else in the
+rules file. Same pattern as the pre-existing Mombongo webhook account
+(`mombongo-webhook@system.arom.cd`) — a separate identity per narrow
+purpose, never shared across domains.
+
+**Provisioning** (one-time, or to re-confirm an existing account's claim/
+profile are still correct):
+
+```
+GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json \
+  node scripts/provision-inventory-service-account.mjs --project arom-production
+```
+
+The `--project` flag (or `INVENTORY_SERVICE_TARGET_PROJECT=<id>` env var)
+is required for any non-emulator run and must match the project the
+credentials themselves resolve to — the script refuses to run otherwise,
+specifically to rule out an operator accidentally targeting the wrong
+Firebase project with the right-looking credentials. Running under
+`firebase emulators:exec` (any `--project`) targets the local emulator
+instead and skips that check, matching how every other script in this
+repo distinguishes emulator from live runs (`scripts/lib/admin.mjs`).
+
+Re-running against an account that already exists never overwrites its
+password — it only re-applies the claim and profile doc (self-correcting:
+`setCustomUserClaims` replaces the account's claims wholesale, so any
+unexpected extra claim from manual tampering is wiped, not merged). The
+generated password is printed once, to the terminal only — never write
+this script's output to a file, CI log, or anywhere else persistent;
+capture the password directly from the interactive session and store it
+immediately as the Cloudflare Worker secret below.
+
+**Storing the password:**
+
+```
+cd AROM-Production
+npx wrangler secret put INVENTORY_SERVICE_PASSWORD
+# paste the password printed above when prompted
+```
+
+`INVENTORY_SERVICE_EMAIL` (`inventory-service@system.arom.cd`) is not a
+secret — set it as a plain Worker variable, not a secret.
+
+**Rotating the password:** generate a new one directly in the Firebase
+console (Authentication → find `inventory-service@system.arom.cd` → Reset
+password) or via `gcloud`/Admin SDK, then update the
+`INVENTORY_SERVICE_PASSWORD` Worker secret with `npx wrangler secret put
+INVENTORY_SERVICE_PASSWORD` the same way as initial provisioning. No code
+change needed — the route re-authenticates on first use per Worker
+isolate.
+
+**Disabling / revoking** (suspected compromise, or the route is being
+decommissioned): disable the account immediately in the Firebase console
+(Authentication → the account → Disable account) — this takes effect
+immediately and does not require redeploying anything, since every
+`/api/inventory/qc-release` call re-verifies sign-in. To fully revoke
+instead of just disabling, delete the Auth account and its `users/{uid}`
+doc; `isInventoryService()` fails closed the moment the custom claim's
+account no longer exists or can no longer sign in, so no further access is
+possible either way. There is nothing else this account can reach —
+its custom claim satisfies no other rule in `firestore.rules`.
 
 ## Enabling Google / Facebook sign-in
 
