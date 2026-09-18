@@ -307,3 +307,68 @@ still works: `bun run build && cd .output/server && npx wrangler deploy`
 — the deploy has to run from `.output/server` (where Nitro writes the
 generated `wrangler.json` with the real `main`/`assets` paths), not repo
 root, where only the name-pinning `wrangler.jsonc` lives.
+
+Two things worth knowing about this build step specifically:
+
+- `.env.local` (if present — it's the personal local-dev override file,
+  gitignored via `*.local`) gets picked up by `bun run build` the same as
+  `bun run dev`, since Vite loads it in every mode. If it points at the
+  local Firebase emulator (`VITE_USE_FIREBASE_EMULATOR=true` /
+  `VITE_FIREBASE_PROJECT_ID=demo-arom-local`), a manual deploy built with
+  that file present will silently ship a Worker that talks to the
+  emulator project instead of `arom-production-657f2`. Move it aside
+  before building for a real deploy, then restore it — don't delete it.
+- Nitro's `cloudflare-module` preset stamps `compatibility_date` in the
+  generated `.output/server/wrangler.json` to *today's* date. Right at a
+  date rollover, Cloudflare's own API can reject that as "in the future"
+  from its side (`code: 10021`) even though it's already tomorrow
+  locally. If a deploy fails with that error, open
+  `.output/server/wrangler.json` and set `compatibility_date` back one
+  day, then retry — it's a generated file, safe to edit for one deploy.
+
+## Mombongo payments — test mode and go-live
+
+Every invoice/checkout AROM creates through Mombongo (both the
+producer-invoice flow, MOB-07–10, and the harvest-marketplace flow,
+Sprint DP) is currently `testMode: true` — no real money moves. This is
+controlled in two places, not one:
+
+1. **Mombongo's own side**: `partners/Arom.testMode` in their `mombongo-dev`
+   Firebase project is the actual switch a new invoice inherits when
+   Mombongo creates it. AROM doesn't own this record but currently has
+   direct Firestore access to it (the same account used to provision
+   AROM's webhook URL there). Flipping it to `false` is the real go-live
+   moment — coordinate with Mombongo before doing this, not just a
+   flip-and-see.
+2. **AROM's own side**: `AROM-Production/src/lib/payments/mombongo.ts`'s
+   `createMombongoCheckout` currently *hardcodes* `testMode: true` on the
+   `mombongoCheckout` field it writes to `producerInvoices`, because
+   Mombongo's `createExternalInvoiceCheckout` response doesn't echo the
+   flag back explicitly. This means AROM's own UI (the `TestModeBanner` on
+   the invoice detail/pay screens) will keep showing "mode test" even
+   after Mombongo's side goes live, until that hardcoding is replaced with
+   something that reflects the real value — check whether a real (post-flip)
+   checkout response actually includes the flag before assuming this needs
+   a code change; it may already be fixable by just reading it off the
+   response instead of hardcoding.
+
+**Before flipping `partners/Arom.testMode` to `false`:**
+
+- Confirm a full real chain has been exercised at least once in test mode:
+  checkout created → Mombongo's real webhook (not a hand-signed script
+  request) received by AROM → `producerInvoices.statut` becomes `payee`.
+  As of 2026-09-01 this has been verified with a hand-signed webhook
+  delivery against the live endpoint (confirms signature verification,
+  lookup, transition, and idempotency on a repeat delivery all work), but
+  *not* yet with an actual Mombongo-initiated checkout completing on
+  their end — their `createExternalInvoiceCheckout` was returning `502`
+  (their payment provider itself failing) against both `card` and
+  `mobile_money` in their `mombongo-dev` environment as of that date; this
+  needs to be resolved on their side first.
+- Confirm the mobile app's real-payment gateway
+  (`EXPO_PUBLIC_ENABLE_MOMBONGO_SIMULATION`) is actually set in whatever
+  EAS build profile you intend to ship — it's on for `preview` as of
+  2026-09-01, not yet decided for `production`.
+- This is reversible: flipping `partners/Arom.testMode` back to `true`
+  reverts new invoices to test mode immediately, no AROM-side deployment
+  needed either way.
