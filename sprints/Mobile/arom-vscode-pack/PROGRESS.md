@@ -236,7 +236,11 @@ these flows regardless of steps 1–3.
 decision within their own authority, not something this session did.
 `AROM-Production`'s equivalent PRs (#21, #22) were **not** merged and
 remain open; `AROM-Mobile`'s #2 was merged but carries zero deploy risk
-either way (no deploy job exists in that repo's CI).
+either way (no deploy job exists in that repo's CI). **#8 and #9 (below)
+have since merged too — see "✅ Incident closed" further down for the
+current, verified state; the "still armed" language in this section and
+in "Working-tree state" further below describes the situation as it was
+between the incident and that verification, not the current state.**
 
 ## ⚠️ Incident: merging #5+#6 auto-fired the (still-unsafe) rules deploy twice — both failed, live rules unchanged
 
@@ -392,35 +396,117 @@ matching a real, since-reconciled release — this only matters for
 documents cancelled from `confirmed` (a pending cancel never had a
 reservation to release).
 
-## Revised cutover order (supersedes the two-blocker version above)
+## ✅ Incident closed (2026-09-18, post-merge verification)
 
-0. **Merge PR #9 (`feat/safe-rules-deploy-workflow`) — now urgent**, since
-   `main` is still armed with the old unsafe workflow (see incident
-   above).
-1. Merge PR #8 (`feat/transitional-order-rules`'s narrowing fix) —
-   updates the (already-merged, over-broad) transitional file to the
-   narrow one before it's ever selected for deploy.
-2. Fix the IAM permission gap found above (grant
+PR #8 (`932560e`) and **PR #9 (`a9f4850`, now `origin/main` HEAD)** were
+merged by the account owner. Full post-merge safety verification
+performed — read-only throughout, nothing deployed, dispatched, merged,
+or provisioned by this pass itself:
+
+- **Live ruleset re-confirmed unchanged twice more** (before and after
+  this verification pass): still `b4dbfaf2`, updated 2026-09-16T09:46:39Z.
+- **`origin/main`'s `.github/workflows/` now contains exactly two files**
+  (read via `git show origin/main:...`, not a local branch):
+  `validate-rules.yml` (push/PR, no `firebase deploy` step, no
+  `secrets.FIREBASE_SERVICE_ACCOUNT_KEY` reference anywhere in it — PR/
+  validation jobs are structurally incapable of production
+  authentication) and `deploy-rules-production.yml` (`workflow_dispatch`
+  only — no `push`/`pull_request` trigger exists in it at all).
+  `deploy-rules.yml` (the old, unsafe, auto-deploying workflow) **no
+  longer exists** — confirmed via `git show` returning "path ... not in
+  origin/main".
+- **Actions-run evidence, PR #8 vs #9**: PR #8's merge commit (`932560e`)
+  triggered **zero** runs (its changes didn't match the then-current
+  `deploy-rules.yml`'s narrow path filter, and `validate-rules.yml`
+  didn't exist yet). PR #9's merge commit (`a9f4850`) triggered exactly
+  **one** run — `Validate Firebase Rules`, `push` event, **success**
+  (run `35341395291`) — and **zero** `Deploy Firebase rules` runs, since
+  that workflow no longer exists as of this commit. This is the direct,
+  empirical proof that merging the fix disarmed `main`.
+- **Clean-worktree re-verification**: a fresh, detached worktree checked
+  out at exactly `origin/main` (`a9f4850`) — not a cached feature branch
+  — ran both suites cold: 19/19 static workflow tests, 394/394 canonical
+  Rules tests (288 final + 15 transitional-orders + 72 actor-matrix + 19
+  workflow, all from a truly clean checkout).
+- **New finding: the `production-rules` GitHub Environment does not
+  exist yet** (`gh api repos/.../environments` → `total_count: 0`).
+  `deploy-rules-production.yml`'s `environment: production-rules` line
+  currently references nothing configured — no required reviewers, no
+  self-review prevention, no branch restriction, no wait timer are
+  enforced today. The workflow's own structural protections
+  (`workflow_dispatch`-only trigger, fail-closed policy/confirm_policy
+  validation, fixed literal project) hold regardless, but the *human*
+  approval gate this design assumes is not yet real. **Exact steps for
+  the owner** (repo is private, user-owned, GitHub Pro — environments
+  with required reviewers are available): Settings → Environments → New
+  environment → name it exactly `production-rules` → check "Required
+  reviewers" and add at least one reviewer → check "Prevent self-review"
+  if offered → under "Deployment branches and tags" select "Selected
+  branches and tags" → add rule `main` only → save. No environment
+  secrets need adding (the workflow only reads the existing repo-level
+  `FIREBASE_SERVICE_ACCOUNT_KEY`).
+
+## Inventory-service provisioning — plan only, nothing executed
+
+Re-confirmed fresh (existence-check only, no credentials printed):
+`inventory-service@system.arom.cd` still **does not exist** on
+`arom-production-657f2`.
+
+- **Script**: `scripts/provision-inventory-service-account.mjs` (already
+  reviewed, unchanged). Safeguards: refuses to run without an explicit
+  `--project` that must match the credential's own resolved project
+  (won't guess, won't run ambiguously); idempotent re-run replaces the
+  custom claim wholesale rather than merging (self-correcting against
+  drift); never overwrites an existing account's password.
+- **Custom claim required**: `{ inventoryService: true }` — nothing else.
+- **3 Worker secrets, by name only**: `INVENTORY_SERVICE_EMAIL`,
+  `INVENTORY_SERVICE_PASSWORD`, `FIREBASE_WEB_API_KEY`.
+- **Credential handling**: the script prints a freshly-generated password
+  to stdout exactly once, by design, documented in its own header —
+  running it through any session whose transcript is retained (including
+  an agent session) would expose that password to that transcript. The
+  safe path is for the account owner to run it directly in their own
+  local terminal (output never leaving their machine) and pipe/redirect
+  it straight into `wrangler secret put INVENTORY_SERVICE_PASSWORD`
+  (which itself prompts for the value rather than taking it as a visible
+  argument) — never via an agent, never pasted into chat.
+- **Post-provisioning checks**: re-run the same existence-check script
+  (account exists, `disabled: false`); fetch custom claims and confirm
+  the object is exactly `{ inventoryService: true }`, nothing broader;
+  `wrangler secret list --name arom-production` shows all 3 names present
+  (never their values); call one trusted route with no `Authorization`
+  header and confirm `401`.
+- **Rollback**: disable the account (`auth.updateUser(uid, { disabled:
+  true })` or revoke its refresh tokens) rather than deleting it outright
+  (preserves the audit trail); `wrangler secret delete` each of the 3
+  names.
+
+## Revised cutover order (post-merge)
+
+1. **Configure the `production-rules` environment** (owner, GitHub UI —
+   steps above). Not a deploy; a repo-settings change only.
+2. Fix the IAM permission gap (grant
    `roles/serviceusage.serviceUsageConsumer`, or equivalent, to the
    `FIREBASE_SERVICE_ACCOUNT_KEY` service account on
    `arom-production-657f2`) — nothing can deploy without this regardless
    of workflow safety.
-3. Run `deploy-rules-production.yml` with `policy=transitional`.
-4. Merge AROM-Production's `stabilize/main-sync` + `chore/wrangler-deploy-config-fix`
+3. Provision `inventory-service` (plan above) + set the 3 Worker secrets.
+4. Dispatch `deploy-rules-production.yml` with `policy=transitional`.
+5. Merge AROM-Production's `stabilize/main-sync` + `chore/wrangler-deploy-config-fix`
    (PRs #21/#22) → live Worker deploy. Smoke test as before.
-5. Run `deploy-rules-production.yml` with `policy=final`.
-6. Configure the mobile production URL + cut a new build (independent,
+6. Dispatch `deploy-rules-production.yml` with `policy=final`.
+7. Configure the mobile production URL + cut a new build (independent,
    any time before real users need the trusted routes to work).
 
 ## Remaining explicit approval points
-- Merging PR #9 (urgent — closes the live risk).
-- Merging PR #8.
+- Configuring the `production-rules` environment (owner, GitHub Settings).
 - Granting the IAM role for the deploy service account.
-- Each `workflow_dispatch` run of `deploy-rules-production.yml` (gated by
-  the `production-rules` environment's required reviewers, once
-  configured).
+- Running the inventory-service provisioning script (owner, local
+  terminal only — see credential-handling note above) + setting the 3
+  Worker secrets.
+- Each `workflow_dispatch` run of `deploy-rules-production.yml`, gated by
+  the environment's reviewers once configured.
 - Merging AROM-Production's #21/#22 → live Worker deploy.
-- Provisioning `inventory-service` + the 3 missing Worker secrets.
 - Cutting/distributing a new mobile production build.
 
 ## Status legend
