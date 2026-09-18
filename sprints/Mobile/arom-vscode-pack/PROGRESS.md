@@ -129,6 +129,115 @@ session transcript/report (not yet its own tracked doc — a reasonable
 follow-up would be to promote it to a `deployment-readiness.md` alongside
 this file); this section is the durable summary of what it found.
 
+## Deployment-safety preparation batch (2026-09-18, later same day)
+
+Prepares the cutover without deploying, merging, provisioning, or
+distributing anything. Every item below is committed and pushed to a
+**non-`main` branch** confirmed, both by reading the workflow definitions
+and empirically (checked `gh run list` immediately after each push — zero
+new runs fired anywhere), to trigger no deploy.
+
+**The originally-proposed Worker-then-Rules (or Rules-then-Worker) cutover
+was rejected** — either order has a window where the live dashboard and
+the live Rules disagree about what an order write looks like. Replaced
+with a three-stage transitional cutover (transitional Rules → new
+Worker/dashboard → final strict Rules); see `firestore.transitional.rules`
+below for the full design and `tests/rules.transitional-orders.test.mjs`
+for the proof.
+
+**AROM-Backend** — `firestore.transitional.rules` (new): `firestore.rules`
+plus exactly one temporary allowance on `orders/{id}.update`, preserving
+the currently-*live* dashboard's unrestricted direct-write shape
+side-by-side with the new `isInventoryService()` trusted path. Authorizes
+no new actor type — Personnalisé/missing-poste staff already satisfy
+`isUnscopedStaff()` under every one of the three rulesets (live,
+transitional, final), a pre-existing, unrelated policy this change
+doesn't touch. Removal criteria documented on the branch itself. 13 new
+emulator tests (`tests/rules.transitional-orders.test.mjs`) prove: the
+legacy write succeeds, the new trusted write succeeds, and every actor
+already denied under the final policy (scoped-away postes, inactive
+accounts, non-owning partners, unauthenticated) stays denied. A
+cross-reference comment added to `tests/rules.test.mjs`'s own equivalent
+test makes "removed once final" explicit. Also fixed, as a byproduct: two
+test files sharing one emulator instance were racing on the Storage
+emulator's ruleset load (`vitest.config.mjs`, `fileParallelism: false`) —
+unrelated to rules logic, but was making the suite flaky. **301/301
+passing** (288 existing + 13 new).
+
+**AROM-Mobile** — `src/lib/config/aromProductionUrl.ts` (new): centralizes
+the 5 previously-duplicated inline
+`env var ?? "http://localhost:8080"` declarations into one
+`getAromProductionUrl()`, called lazily at the point of use, which throws
+instead of silently falling back whenever a release build (`!__DEV__`)
+would resolve to nothing, to a localhost/emulator host, or to the QA
+Worker while not itself the QA target. `eas.json`'s `production` profile
+now sets the real Worker URL (matching `preview`'s own value) — the
+concrete fix for the "shipped build can't reach any backend" finding
+above. New/extended tests: `__tests__/aromProductionUrl.test.ts` (the
+resolver's own logic, every dev/release × configured/missing/local/QA
+combination) and `__tests__/easConfig.test.ts` (static checks that
+`production`/`preview`/`qa-apk` all resolve to a real, non-local URL).
+**1770/1770 passing**, `tsc`/`eslint`/`expo export --platform web` all
+clean.
+
+### Revised three-stage cutover order
+
+1. **Transitional Rules** — deploy `firestore.transitional.rules` (as
+   `firestore.rules`) to `arom-production-657f2`. Both the live dashboard
+   and the not-yet-live new Worker/dashboard can run against it
+   simultaneously. *Rollback*: redeploy the current live ruleset (Console
+   "restore," or redeploy ruleset `3e942b16`, 2026-08-31 — the release
+   immediately before today's live one) — a config-only revert, no code
+   involved.
+2. **New Worker/dashboard + trusted-route smoke tests** — merge the fixed
+   `chore/wrangler-deploy-config-fix` + `stabilize/main-sync` into
+   AROM-Production `main`. Smoke test: `wrangler deployments list` shows
+   the new deployment active; one validation-only call to a trusted route
+   (expect a clean validation error, not 500/permission-denied); one real
+   order confirm through the dashboard succeeds end-to-end. *Rollback*:
+   `wrangler rollback` to the prior deployment (`b34ea1ac08`) — near-instant,
+   Cloudflare retains deployment history.
+3. **Final strict Rules** — deploy the real `firestore.rules` (no
+   transitional branch) once step 2 is confirmed live and serving.
+   Removes the legacy escape hatch. Smoke test: diff live rules against
+   local `firestore.rules`, expect zero diff; re-run
+   `tests/rules.test.mjs`'s "an ordinary ADMIN can no longer flip status
+   directly" against the live project's behavior (or trust the emulator
+   proof, since the ruleset is byte-identical). *Rollback*: redeploy
+   `firestore.transitional.rules` again — a config-only revert, buys time
+   without losing the new Worker/dashboard.
+
+Steps 1 and 3 depend on the wrong-project fix (`fix/deploy-rules-wrong-project`)
+being merged first, or they redeploy to the decoy `arom-production` project
+again.
+
+Separately, before any of steps 1–3: **provision `inventory-service` for
+`arom-production-657f2`** and **set the Worker's 3 missing secrets**
+(`INVENTORY_SERVICE_EMAIL`, `INVENTORY_SERVICE_PASSWORD`,
+`FIREBASE_WEB_API_KEY`) — not a deploy, but must happen before step 2's
+trusted routes can do anything useful once live. And independently,
+**cut a new mobile production build** once `eas.json`'s fix (above) is
+confirmed — the currently-installed build cannot reach any backend for
+these flows regardless of steps 1–3.
+
+### Remote branches pushed (all non-`main`, zero deploys triggered — confirmed via `gh run list` immediately after each push)
+
+| Repo | Branch | Commit | PR | CI result |
+|---|---|---|---|---|
+| AROM-Mobile | `stabilize/main-sync` | `3cc48d2` | [#2](https://github.com/Teddmab/AROM-Mobile/pull/2) | `verify` ✅ pass (lint/typecheck/test) |
+| AROM-Backend | `stabilize/main-sync` | `1ec143c` | [#5](https://github.com/Teddmab/AROM-Backend/pull/5) | no checks configured for PRs on this repo (`deploy-rules.yml` is push-only) |
+| AROM-Backend | `fix/deploy-rules-wrong-project` | `a6e096b` | [#6](https://github.com/Teddmab/AROM-Backend/pull/6) | no checks configured (same reason) |
+| AROM-Backend | `feat/transitional-order-rules` | `9aada50` | [#7](https://github.com/Teddmab/AROM-Backend/pull/7) | no checks configured (same reason); 301/301 local |
+| AROM-Production | `stabilize/main-sync` | `a33bda1` | [#21](https://github.com/Teddmab/AROM-Production/pull/21) | `verify` ✅ pass; `deploy` correctly **skipped** (not a push event) |
+| AROM-Production | `chore/wrangler-deploy-config-fix` | `beed569` | [#22](https://github.com/Teddmab/AROM-Production/pull/22) | `verify` ✅ pass; `deploy` correctly **skipped** |
+
+None of these PRs have been merged. `AromProduction`'s `deploy` job
+showing `skipping` (not "failure" or "success") on both its PRs is itself
+confirmation, straight from GitHub Actions' own evaluation of the
+workflow file, that opening a PR against `main` cannot trigger it —
+independent of and consistent with the static trigger-matrix analysis
+above.
+
 ## Status legend
 
 - ✅ **Complete and committed** — verified against real code/tests/rules; committed (locally at minimum — see the push-status column).
