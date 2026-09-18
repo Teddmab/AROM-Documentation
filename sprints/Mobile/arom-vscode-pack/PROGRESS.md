@@ -231,12 +231,197 @@ these flows regardless of steps 1–3.
 | AROM-Production | `stabilize/main-sync` | `a33bda1` | [#21](https://github.com/Teddmab/AROM-Production/pull/21) | `verify` ✅ pass; `deploy` correctly **skipped** (not a push event) |
 | AROM-Production | `chore/wrangler-deploy-config-fix` | `beed569` | [#22](https://github.com/Teddmab/AROM-Production/pull/22) | `verify` ✅ pass; `deploy` correctly **skipped** |
 
-None of these PRs have been merged. `AromProduction`'s `deploy` job
-showing `skipping` (not "failure" or "success") on both its PRs is itself
-confirmation, straight from GitHub Actions' own evaluation of the
-workflow file, that opening a PR against `main` cannot trigger it —
-independent of and consistent with the static trigger-matrix analysis
-above.
+**Update, same day: PRs #5, #6, #7 above were merged into `AROM-Backend`
+`main` by the account owner shortly after this table was written** — a
+decision within their own authority, not something this session did.
+`AROM-Production`'s equivalent PRs (#21, #22) were **not** merged and
+remain open; `AROM-Mobile`'s #2 was merged but carries zero deploy risk
+either way (no deploy job exists in that repo's CI).
+
+## ⚠️ Incident: merging #5+#6 auto-fired the (still-unsafe) rules deploy twice — both failed, live rules unchanged
+
+Merging `stabilize/main-sync` (#5, brings the final strict `firestore.rules`
+onto `main`) and `fix/deploy-rules-wrong-project` (#6, corrects the
+`--project` flag) landed the OLD `deploy-rules.yml` — still push-triggered
+at that point, since its replacement (below) hadn't merged yet — squarely
+on its own trigger condition. It fired twice, once per merge commit
+(2026-09-18 10:36 and 10:37 UTC):
+
+- Run 1 (before #6's fix applied): `firebase deploy --project arom-production`
+  — failed: `Deploy target prod-default not configured for project
+  arom-production` (a storage-target config gap on the decoy project;
+  never reached Firestore rules at all).
+- Run 2 (after #6's fix applied): `firebase deploy --project
+  arom-production-657f2` — the **real** project this time — failed:
+  `HTTP 403: Caller does not have required permission to use project
+  arom-production-657f2. Grant the caller the roles/
+  serviceusage.serviceUsageConsumer role...`. **The GitHub Actions
+  service account (`FIREBASE_SERVICE_ACCOUNT_KEY`) has no IAM permission
+  on the real production project at all** — a previously-unknown, newly
+  discovered blocker in its own right, and (by lucky accident, not by
+  design) the only reason this run didn't actually deploy the final
+  strict rules straight past the transitional migration.
+
+**Confirmed directly, twice, via the Firebase Rules REST API (not
+assumed): the live ruleset is still `b4dbfaf2`, updated
+2026-09-16T09:46:39Z — byte-identical to before either run.** Nothing
+was deployed. This was the exact risk the "make Rules deployment
+selection safe" work below was already underway to close — see that
+section for the fix, now itself merge-ready. **`main` is still armed
+with the old unsafe workflow as of this writing** — the next push
+touching `firestore.rules` will try again, and will succeed the moment
+anyone fixes the IAM gap above without knowing about this risk. Merging
+PR #9 below is now urgent, not merely tidy.
+
+## A. Root cause of the Personnalisé contradiction
+
+A prior version of this tracker's report asserted, in a summary table,
+that Personnalisé succeeds under **final** Rules for a direct order
+confirm — presented as a possible security defect. **This was never
+backed by a test.** `grep -n "Personnalisé" tests/rules.test.mjs` shows
+every existing Personnalisé case in that file targets other collections
+(producteurs, stockPF-adjacent, tasks) — the `orders` describe block had
+zero.
+
+**Root cause**: conflating actor *recognition* with operation
+*authorization*. `isUnscopedStaff()` (`firestore.rules:72-76`) already
+returns `true` for Personnalisé, a missing poste, or an unrecognized
+poste string — a real, pre-existing, unrelated policy, documented on
+that function itself, present identically in the live/transitional/final
+rulesets. But `orders/{id}.update`'s further AND-conditions (reservation
+must stay unchanged; status must stay unchanged or go pending→cancelled)
+apply identically to *every* actor the top-level
+`isAdmin() || isUnscopedStaff() || isCommercialStaff()` OR recognizes —
+being unscoped-staff only gets an actor into that OR, it grants no
+additional operation-level privilege beyond what Admin/Commercial
+themselves have. There is exactly one rule block that can authorize an
+`orders/{id}` write in either ruleset (confirmed: `grep -n "match
+/orders"` — no second or wildcard match block exists anywhere in this
+schema).
+
+**Corrected, proven claim**: Personnalisé, missing-poste, and
+unknown-poste behave **identically** to Admin and Commercial under both
+the final and transitional policies — none of them is a defect, because
+none of them differs from the other two.
+
+### Actor × operation matrix — proven directly (72 isolated emulator assertions, `tests/rules.orders-actor-matrix.test.mjs`)
+
+| Actor | pending→confirmed | confirmed→fulfilled | confirmed→cancelled | pending→cancelled | reservation mutation | unrelated-field mutation |
+|---|---|---|---|---|---|---|
+| Admin | Final: ❌ / Trans: ✅ | Final: ❌ / Trans: ✅ | Final: ❌ / Trans: ✅ | Final: ✅ / Trans: ✅ | Final: ❌ / Trans: ❌ | Final: ✅ / Trans: ✅ |
+| Commercial | Final: ❌ / Trans: ✅ | Final: ❌ / Trans: ✅ | Final: ❌ / Trans: ✅ | Final: ✅ / Trans: ✅ | Final: ❌ / Trans: ❌ | Final: ✅ / Trans: ✅ |
+| Personnalisé | Final: ❌ / Trans: ✅ | Final: ❌ / Trans: ✅ | Final: ❌ / Trans: ✅ | Final: ✅ / Trans: ✅ | Final: ❌ / Trans: ❌ | Final: ✅ / Trans: ✅ |
+| Missing poste | Final: ❌ / Trans: ✅ | Final: ❌ / Trans: ✅ | Final: ❌ / Trans: ✅ | Final: ✅ / Trans: ✅ | Final: ❌ / Trans: ❌ | Final: ✅ / Trans: ✅ |
+| Unknown poste | Final: ❌ / Trans: ✅ | Final: ❌ / Trans: ✅ | Final: ❌ / Trans: ✅ | Final: ✅ / Trans: ✅ | Final: ❌ / Trans: ❌ | Final: ✅ / Trans: ✅ |
+| Inactive admin | Final: ❌ / Trans: ❌ | Final: ❌ / Trans: ❌ | Final: ❌ / Trans: ❌ | Final: ❌ / Trans: ❌ | Final: ❌ / Trans: ❌ | Final: ❌ / Trans: ❌ |
+
+Every ✅/❌ above is one real `assertSucceeds`/`assertFails` call against
+a live emulator, not an inference. The exact predicate authorizing every
+✅ cell: final policy's own restricted branch (pending→cancelled,
+unrelated-field) or — transitionally only — the three narrow legacy
+branches described in section C below.
+
+## B. Rules deployment selection — redesigned
+
+`deploy-rules.yml` (push-to-main-triggered, wrong-project-targeted since
+its first commit) is **replaced by two workflows**, on branch
+`feat/safe-rules-deploy-workflow`:
+
+- **`validate-rules.yml`** — push/PR, any branch, no deploy step exists
+  in the file at all. Runs the full emulator suite (394 tests), which
+  covers both `firestore.rules` and `firestore.transitional.rules`.
+- **`deploy-rules-production.yml`** — `workflow_dispatch` only (no
+  `push`/`pull_request` trigger anywhere in it — confirmed both
+  statically and by the fact that merging #5+#6 could only fire the OLD
+  workflow, never this one). Gated on the `production-rules` GitHub
+  Environment (reviewer approval — configure once in Settings →
+  Environments; not expressible in the YAML itself). Requires a `policy`
+  choice input (`transitional`|`final`, no default) plus a hand-typed
+  `confirm_policy` that must match; fails closed on anything else.
+  Copies the selected file into an isolated scratch directory with its
+  own `firebase.json`/`.firebaserc` — never overwrites the repo's own
+  tracked `firestore.rules`. Target project is the literal
+  `arom-production-657f2` in the deploy command itself, never an input.
+  Logs the selected policy + source commit, then runs the new
+  `scripts/verify-deployed-rules.mjs` to fetch the live ruleset via the
+  Rules REST API and diff it byte-for-byte against the selected file,
+  failing the job on any mismatch.
+
+19 new static tests (`tests/deployWorkflow.test.mjs`) prove every one of
+the 5 requested properties. **CI-verified for real**: PR #9's `validate`
+job passed on an actual GitHub-hosted runner (2 real bugs caught and
+fixed along the way — `firebase-tools` wasn't installed, then the
+emulator needed JDK 21 which `ubuntu-latest`'s default doesn't have;
+neither had ever been needed before since no prior workflow ran the
+emulator in CI at all).
+
+## C. Transitional scope — verified against the exact live ruleset, then narrowed
+
+Fetched the real deployed ruleset via the Firebase Rules REST API
+(`arom-production-657f2`, release `b4dbfaf2`, 2026-09-16) — not a local
+historical file. **The live `orders/{id}.update` is exactly
+`isAdmin() || isUnscopedStaff() || isCommercialStaff()`, with zero field
+restriction** — functionally identical to this branch's first draft of
+the transitional escape hatch. So that first draft added no *new* risk
+beyond the status quo — but "no new risk" isn't "as narrow as possible."
+
+Read the actual currently-deployed dashboard source
+(`git show b34ea1ac08:src/routes/dashboard.tsx` in AROM-Production) to
+find its exhaustive real write shapes: exactly three —
+`{status: pending→confirmed, deliveryDate?}`,
+`{status: confirmed→cancelled}` (status only), and
+`{status: confirmed→fulfilled, fulfilledAt}`. A plain pending→cancelled
+write is already covered by the final policy's own carve-out and needs
+no transitional help. **Narrowed the escape hatch to precisely those
+three shapes** (`request.resource.data.diff(...).affectedKeys()`, the
+same idiom already used 5 other places in `firestore.rules`) — arbitrary
+document-field mutation, and specifically an unrestricted reservation
+write, is **not** required for compatibility and is **no longer
+granted**, even transitionally (proven: the "reservation mutation only"
+column above is ❌ under both final and transitional).
+
+The one shape that genuinely bypasses reservation release
+(confirmed→cancelled, status only) is kept — removing it would break the
+live "Annuler" button on a confirmed order for the entire cutover
+window — but it's now the narrowest form possible (status field only,
+nothing else). If, once this is deployed, an audit of writes made during
+the window is wanted: query `orders` where `status == 'cancelled'` and
+`updatedAt`/write-time falls inside the transitional deploy window, and
+confirm each such document either has no `reservation` field or one
+matching a real, since-reconciled release — this only matters for
+documents cancelled from `confirmed` (a pending cancel never had a
+reservation to release).
+
+## Revised cutover order (supersedes the two-blocker version above)
+
+0. **Merge PR #9 (`feat/safe-rules-deploy-workflow`) — now urgent**, since
+   `main` is still armed with the old unsafe workflow (see incident
+   above).
+1. Merge PR #8 (`feat/transitional-order-rules`'s narrowing fix) —
+   updates the (already-merged, over-broad) transitional file to the
+   narrow one before it's ever selected for deploy.
+2. Fix the IAM permission gap found above (grant
+   `roles/serviceusage.serviceUsageConsumer`, or equivalent, to the
+   `FIREBASE_SERVICE_ACCOUNT_KEY` service account on
+   `arom-production-657f2`) — nothing can deploy without this regardless
+   of workflow safety.
+3. Run `deploy-rules-production.yml` with `policy=transitional`.
+4. Merge AROM-Production's `stabilize/main-sync` + `chore/wrangler-deploy-config-fix`
+   (PRs #21/#22) → live Worker deploy. Smoke test as before.
+5. Run `deploy-rules-production.yml` with `policy=final`.
+6. Configure the mobile production URL + cut a new build (independent,
+   any time before real users need the trusted routes to work).
+
+## Remaining explicit approval points
+- Merging PR #9 (urgent — closes the live risk).
+- Merging PR #8.
+- Granting the IAM role for the deploy service account.
+- Each `workflow_dispatch` run of `deploy-rules-production.yml` (gated by
+  the `production-rules` environment's required reviewers, once
+  configured).
+- Merging AROM-Production's #21/#22 → live Worker deploy.
+- Provisioning `inventory-service` + the 3 missing Worker secrets.
+- Cutting/distributing a new mobile production build.
 
 ## Status legend
 
