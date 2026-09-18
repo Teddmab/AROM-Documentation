@@ -143,42 +143,70 @@ rules file. Same pattern as the pre-existing Mombongo webhook account
 (`mombongo-webhook@system.arom.cd`) — a separate identity per narrow
 purpose, never shared across domains.
 
-**Provisioning** (one-time, or to re-confirm an existing account's claim/
-profile are still correct):
+**Provisioning** — rewritten 2026-09-18 (deployment-safety hardening)
+after an audit found the prior version printed the generated password to
+stdout, exposing a live production credential to any terminal/log/agent
+transcript that captured it. The password is now never printed, logged,
+or written to any file — it's generated in memory and piped straight
+into `wrangler secret put`'s stdin, which this script now does for you:
 
 ```
 GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json \
-  node scripts/provision-inventory-service-account.mjs --project arom-production
+  node scripts/provision-inventory-service-account.mjs \
+    --project arom-production-657f2 --worker arom-production
 ```
 
-The `--project` flag (or `INVENTORY_SERVICE_TARGET_PROJECT=<id>` env var)
-is required for any non-emulator run and must match the project the
-credentials themselves resolve to — the script refuses to run otherwise,
-specifically to rule out an operator accidentally targeting the wrong
-Firebase project with the right-looking credentials. Running under
-`firebase emulators:exec` (any `--project`) targets the local emulator
-instead and skips that check, matching how every other script in this
-repo distinguishes emulator from live runs (`scripts/lib/admin.mjs`).
+Both `--project` and `--worker` (or `INVENTORY_SERVICE_TARGET_PROJECT`/
+`INVENTORY_SERVICE_TARGET_WORKER` env vars) are required for any
+non-emulator run and must equal the one real project/Worker literally —
+never a default, never inferred. Running under `firebase emulators:exec`
+(any `--project`) targets the local emulator instead and skips the
+project check, matching how every other script in this repo distinguishes
+emulator from live runs (`scripts/lib/admin.mjs`).
 
-Re-running against an account that already exists never overwrites its
-password — it only re-applies the claim and profile doc (self-correcting:
-`setCustomUserClaims` replaces the account's claims wholesale, so any
-unexpected extra claim from manual tampering is wiped, not merged). The
-generated password is printed once, to the terminal only — never write
-this script's output to a file, CI log, or anywhere else persistent;
-capture the password directly from the interactive session and store it
-immediately as the Cloudflare Worker secret below.
+Add `--dry-run` first to see exactly what a real run would do (does the
+account already exist? which of the 3 Worker secret names already exist?
+is `wrangler` authenticated?) without creating an account, generating a
+password, setting a claim, or writing a secret.
 
-**Storing the password:**
+**An account that already exists is never modified** — this script only
+ever creates an absent one (a change from the prior "self-correcting"
+re-run behavior, deliberately: automatically touching an existing
+production identity, even to "just" re-apply its claim, is exactly the
+kind of automatic mutation this hardening removes). If the account
+exists and its claim or profile ever needs correcting, do that
+explicitly and manually via the Firebase console or a one-off Admin SDK
+call — never by re-running this script.
+
+On success, all 3 Worker secrets are set automatically by the script
+itself — `INVENTORY_SERVICE_EMAIL`, `INVENTORY_SERVICE_PASSWORD`, and
+`FIREBASE_WEB_API_KEY` (only if `FIREBASE_WEB_API_KEY_VALUE` is set in
+your own shell's environment first — see below), each piped to
+`wrangler secret put <NAME> --name arom-production` via stdin, never as
+a command argument. Nothing further to run manually unless that report
+shows a `skipped-manual` or `failed` step.
+
+**The Firebase Web API key** identifies this project for the Identity
+Toolkit sign-in call the Worker makes as this account — it's a
+non-secret, publicly-embedded project identifier by design (the exact
+same value is already hardcoded directly in `AROM-Mobile`'s own committed
+`src/lib/firebase/config.ts`), but the script still never fabricates or
+prints a value you haven't chosen to supply. Set
+`FIREBASE_WEB_API_KEY_VALUE=<value>` in your shell before running (never
+as a `--` argument) to have it set automatically alongside the other two;
+otherwise the script prints a one-line manual command for that secret
+only at the end, changing nothing else about the run:
 
 ```
-cd AROM-Production
-npx wrangler secret put INVENTORY_SERVICE_PASSWORD
-# paste the password printed above when prompted
+wrangler secret put FIREBASE_WEB_API_KEY --name arom-production
+# paste the value when prompted — Firebase Console -> Project settings ->
+# General -> Web API Key, for arom-production-657f2
 ```
 
-`INVENTORY_SERVICE_EMAIL` (`inventory-service@system.arom.cd`) is not a
-secret — set it as a plain Worker variable, not a secret.
+`INVENTORY_SERVICE_EMAIL` is set as a Worker *secret* now (not a plain
+variable as in the prior version of this section) — simpler and
+consistent with the other two, and the value itself was never sensitive
+either way.
 
 **Rotating the password:** generate a new one directly in the Firebase
 console (Authentication → find `inventory-service@system.arom.cd` → Reset
