@@ -143,42 +143,70 @@ rules file. Same pattern as the pre-existing Mombongo webhook account
 (`mombongo-webhook@system.arom.cd`) — a separate identity per narrow
 purpose, never shared across domains.
 
-**Provisioning** (one-time, or to re-confirm an existing account's claim/
-profile are still correct):
+**Provisioning** — rewritten 2026-09-18 (deployment-safety hardening)
+after an audit found the prior version printed the generated password to
+stdout, exposing a live production credential to any terminal/log/agent
+transcript that captured it. The password is now never printed, logged,
+or written to any file — it's generated in memory and piped straight
+into `wrangler secret put`'s stdin, which this script now does for you:
 
 ```
 GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json \
-  node scripts/provision-inventory-service-account.mjs --project arom-production
+  node scripts/provision-inventory-service-account.mjs \
+    --project arom-production-657f2 --worker arom-production
 ```
 
-The `--project` flag (or `INVENTORY_SERVICE_TARGET_PROJECT=<id>` env var)
-is required for any non-emulator run and must match the project the
-credentials themselves resolve to — the script refuses to run otherwise,
-specifically to rule out an operator accidentally targeting the wrong
-Firebase project with the right-looking credentials. Running under
-`firebase emulators:exec` (any `--project`) targets the local emulator
-instead and skips that check, matching how every other script in this
-repo distinguishes emulator from live runs (`scripts/lib/admin.mjs`).
+Both `--project` and `--worker` (or `INVENTORY_SERVICE_TARGET_PROJECT`/
+`INVENTORY_SERVICE_TARGET_WORKER` env vars) are required for any
+non-emulator run and must equal the one real project/Worker literally —
+never a default, never inferred. Running under `firebase emulators:exec`
+(any `--project`) targets the local emulator instead and skips the
+project check, matching how every other script in this repo distinguishes
+emulator from live runs (`scripts/lib/admin.mjs`).
 
-Re-running against an account that already exists never overwrites its
-password — it only re-applies the claim and profile doc (self-correcting:
-`setCustomUserClaims` replaces the account's claims wholesale, so any
-unexpected extra claim from manual tampering is wiped, not merged). The
-generated password is printed once, to the terminal only — never write
-this script's output to a file, CI log, or anywhere else persistent;
-capture the password directly from the interactive session and store it
-immediately as the Cloudflare Worker secret below.
+Add `--dry-run` first to see exactly what a real run would do (does the
+account already exist? which of the 3 Worker secret names already exist?
+is `wrangler` authenticated?) without creating an account, generating a
+password, setting a claim, or writing a secret.
 
-**Storing the password:**
+**An account that already exists is never modified** — this script only
+ever creates an absent one (a change from the prior "self-correcting"
+re-run behavior, deliberately: automatically touching an existing
+production identity, even to "just" re-apply its claim, is exactly the
+kind of automatic mutation this hardening removes). If the account
+exists and its claim or profile ever needs correcting, do that
+explicitly and manually via the Firebase console or a one-off Admin SDK
+call — never by re-running this script.
+
+On success, all 3 Worker secrets are set automatically by the script
+itself — `INVENTORY_SERVICE_EMAIL`, `INVENTORY_SERVICE_PASSWORD`, and
+`FIREBASE_WEB_API_KEY` (only if `FIREBASE_WEB_API_KEY_VALUE` is set in
+your own shell's environment first — see below), each piped to
+`wrangler secret put <NAME> --name arom-production` via stdin, never as
+a command argument. Nothing further to run manually unless that report
+shows a `skipped-manual` or `failed` step.
+
+**The Firebase Web API key** identifies this project for the Identity
+Toolkit sign-in call the Worker makes as this account — it's a
+non-secret, publicly-embedded project identifier by design (the exact
+same value is already hardcoded directly in `AROM-Mobile`'s own committed
+`src/lib/firebase/config.ts`), but the script still never fabricates or
+prints a value you haven't chosen to supply. Set
+`FIREBASE_WEB_API_KEY_VALUE=<value>` in your shell before running (never
+as a `--` argument) to have it set automatically alongside the other two;
+otherwise the script prints a one-line manual command for that secret
+only at the end, changing nothing else about the run:
 
 ```
-cd AROM-Production
-npx wrangler secret put INVENTORY_SERVICE_PASSWORD
-# paste the password printed above when prompted
+wrangler secret put FIREBASE_WEB_API_KEY --name arom-production
+# paste the value when prompted — Firebase Console -> Project settings ->
+# General -> Web API Key, for arom-production-657f2
 ```
 
-`INVENTORY_SERVICE_EMAIL` (`inventory-service@system.arom.cd`) is not a
-secret — set it as a plain Worker variable, not a secret.
+`INVENTORY_SERVICE_EMAIL` is set as a Worker *secret* now (not a plain
+variable as in the prior version of this section) — simpler and
+consistent with the other two, and the value itself was never sensitive
+either way.
 
 **Rotating the password:** generate a new one directly in the Firebase
 console (Authentication → find `inventory-service@system.arom.cd` → Reset
@@ -279,3 +307,68 @@ still works: `bun run build && cd .output/server && npx wrangler deploy`
 — the deploy has to run from `.output/server` (where Nitro writes the
 generated `wrangler.json` with the real `main`/`assets` paths), not repo
 root, where only the name-pinning `wrangler.jsonc` lives.
+
+Two things worth knowing about this build step specifically:
+
+- `.env.local` (if present — it's the personal local-dev override file,
+  gitignored via `*.local`) gets picked up by `bun run build` the same as
+  `bun run dev`, since Vite loads it in every mode. If it points at the
+  local Firebase emulator (`VITE_USE_FIREBASE_EMULATOR=true` /
+  `VITE_FIREBASE_PROJECT_ID=demo-arom-local`), a manual deploy built with
+  that file present will silently ship a Worker that talks to the
+  emulator project instead of `arom-production-657f2`. Move it aside
+  before building for a real deploy, then restore it — don't delete it.
+- Nitro's `cloudflare-module` preset stamps `compatibility_date` in the
+  generated `.output/server/wrangler.json` to *today's* date. Right at a
+  date rollover, Cloudflare's own API can reject that as "in the future"
+  from its side (`code: 10021`) even though it's already tomorrow
+  locally. If a deploy fails with that error, open
+  `.output/server/wrangler.json` and set `compatibility_date` back one
+  day, then retry — it's a generated file, safe to edit for one deploy.
+
+## Mombongo payments — test mode and go-live
+
+Every invoice/checkout AROM creates through Mombongo (both the
+producer-invoice flow, MOB-07–10, and the harvest-marketplace flow,
+Sprint DP) is currently `testMode: true` — no real money moves. This is
+controlled in two places, not one:
+
+1. **Mombongo's own side**: `partners/Arom.testMode` in their `mombongo-dev`
+   Firebase project is the actual switch a new invoice inherits when
+   Mombongo creates it. AROM doesn't own this record but currently has
+   direct Firestore access to it (the same account used to provision
+   AROM's webhook URL there). Flipping it to `false` is the real go-live
+   moment — coordinate with Mombongo before doing this, not just a
+   flip-and-see.
+2. **AROM's own side**: `AROM-Production/src/lib/payments/mombongo.ts`'s
+   `createMombongoCheckout` currently *hardcodes* `testMode: true` on the
+   `mombongoCheckout` field it writes to `producerInvoices`, because
+   Mombongo's `createExternalInvoiceCheckout` response doesn't echo the
+   flag back explicitly. This means AROM's own UI (the `TestModeBanner` on
+   the invoice detail/pay screens) will keep showing "mode test" even
+   after Mombongo's side goes live, until that hardcoding is replaced with
+   something that reflects the real value — check whether a real (post-flip)
+   checkout response actually includes the flag before assuming this needs
+   a code change; it may already be fixable by just reading it off the
+   response instead of hardcoding.
+
+**Before flipping `partners/Arom.testMode` to `false`:**
+
+- Confirm a full real chain has been exercised at least once in test mode:
+  checkout created → Mombongo's real webhook (not a hand-signed script
+  request) received by AROM → `producerInvoices.statut` becomes `payee`.
+  As of 2026-09-01 this has been verified with a hand-signed webhook
+  delivery against the live endpoint (confirms signature verification,
+  lookup, transition, and idempotency on a repeat delivery all work), but
+  *not* yet with an actual Mombongo-initiated checkout completing on
+  their end — their `createExternalInvoiceCheckout` was returning `502`
+  (their payment provider itself failing) against both `card` and
+  `mobile_money` in their `mombongo-dev` environment as of that date; this
+  needs to be resolved on their side first.
+- Confirm the mobile app's real-payment gateway
+  (`EXPO_PUBLIC_ENABLE_MOMBONGO_SIMULATION`) is actually set in whatever
+  EAS build profile you intend to ship — it's on for `preview` as of
+  2026-09-01, not yet decided for `production`.
+- This is reversible: flipping `partners/Arom.testMode` back to `true`
+  reverts new invoices to test mode immediately, no AROM-side deployment
+  needed either way.

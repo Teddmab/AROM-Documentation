@@ -481,16 +481,50 @@ Re-confirmed fresh (existence-check only, no credentials printed):
   (preserves the audit trail); `wrangler secret delete` each of the 3
   names.
 
+## ⚠️ `production-rules` environment: still does not exist (re-checked 2026-09-18, later same day)
+
+The owner reported having configured it. **Re-verified via `gh api repos/Teddmab/AROM-Backend/environments` — still `total_count: 0`.** Checked all three repos (AROM-Backend, AROM-Production, AROM-Mobile) to rule out a mix-up: **zero environments exist on any of them.** This contradicts the report and is flagged here rather than silently assumed — the exact GitHub UI steps from the section above are still the pending action. Nothing in this batch depended on the environment existing (it only prepares tooling), so this doesn't block the work below, but it does block ever safely dispatching `deploy-rules-production.yml`.
+
+## Inventory-service provisioning tooling — hardened (2026-09-18, later same day)
+
+The provisioning script printed the generated password to stdout — a
+live production credential in cleartext to any terminal/log/agent
+transcript. Rewritten: **[AROM-Backend PR #10](https://github.com/Teddmab/AROM-Backend/pull/10)** (branch `feat/harden-inventory-service-provisioning`, commit `effe409`, not merged).
+
+- Password now only ever exists as an in-memory string, piped directly
+  into `wrangler secret put`'s stdin (spawned via `npx`, value never in
+  argv, never printed/logged), overwritten before the process exits.
+- An existing account is now **never** modified automatically (a
+  deliberate change from the prior "self-correcting" re-run behavior) —
+  only ever created when genuinely absent.
+- New `--dry-run` performs every real read and reports a plan; creates
+  nothing.
+- 40 new tests (27 unit + 13 dependency-injected integration), 434/434
+  total passing.
+- **Ran only `--dry-run` against the real `arom-production-657f2`/
+  `arom-production` target** (explicitly authorized, read-only): account
+  confirmed absent, 0/3 secrets present, Cloudflare auth confirmed.
+  Separately confirmed the wrong-project and wrong-worker cases are
+  rejected before touching either service. Re-verified after: no account
+  created, secret list unchanged (still only the 2 pre-existing Mombongo
+  secrets). **Apply mode was not run.**
+- `runbook.md`'s "Inventory-service system account" section updated to
+  match (correct project id in the example command, `--worker` now
+  required, new re-run/`--dry-run`/`FIREBASE_WEB_API_KEY_VALUE` behavior
+  documented) — same branch, not merged.
+
 ## Revised cutover order (post-merge)
 
 1. **Configure the `production-rules` environment** (owner, GitHub UI —
-   steps above). Not a deploy; a repo-settings change only.
+   steps above) — **still not done**, re-confirmed this pass. Not a
+   deploy; a repo-settings change only.
 2. Fix the IAM permission gap (grant
    `roles/serviceusage.serviceUsageConsumer`, or equivalent, to the
    `FIREBASE_SERVICE_ACCOUNT_KEY` service account on
    `arom-production-657f2`) — nothing can deploy without this regardless
    of workflow safety.
-3. Provision `inventory-service` (plan above) + set the 3 Worker secrets.
+3. Merge AROM-Backend PR #10, then provision `inventory-service` for real
+   (owner, local terminal, `--dry-run` first) + set the 3 Worker secrets.
 4. Dispatch `deploy-rules-production.yml` with `policy=transitional`.
 5. Merge AROM-Production's `stabilize/main-sync` + `chore/wrangler-deploy-config-fix`
    (PRs #21/#22) → live Worker deploy. Smoke test as before.
@@ -499,10 +533,12 @@ Re-confirmed fresh (existence-check only, no credentials printed):
    any time before real users need the trusted routes to work).
 
 ## Remaining explicit approval points
-- Configuring the `production-rules` environment (owner, GitHub Settings).
+- Configuring the `production-rules` environment (owner, GitHub Settings
+  — genuinely still outstanding).
 - Granting the IAM role for the deploy service account.
-- Running the inventory-service provisioning script (owner, local
-  terminal only — see credential-handling note above) + setting the 3
+- Merging AROM-Backend PR #10 (provisioning tooling).
+- Running the (now-hardened) inventory-service provisioning script for
+  real, in apply mode (owner, local terminal only) + setting the 3
   Worker secrets.
 - Each `workflow_dispatch` run of `deploy-rules-production.yml`, gated by
   the environment's reviewers once configured.
