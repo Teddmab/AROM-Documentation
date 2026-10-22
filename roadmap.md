@@ -30,10 +30,13 @@ individual, PR-sized sprints.
   [Teddmab/AROM-Production#7](https://github.com/Teddmab/AROM-Production/pull/7).
 - **Guided boutique onboarding.** `/storefront/signup` was a three-field
   form with no phone, address, or verification info — not enough to
-  actually deliver to or vet a new boutique. Now a 5-step wizard
-  collects contact info, a structured delivery address, and an optional
-  KYC field, and denormalizes phone/address onto each order so the
-  dashboard shows what's needed to fulfill it. See
+  actually deliver to or vet a new boutique. Landed as a 5-step wizard
+  collecting contact info, a structured delivery address, and an optional
+  KYC field, denormalizing phone/address onto each order so the
+  dashboard shows what's needed to fulfill it; later reshaped into a
+  shorter 3-step OAuth-first flow with a role-selection step (also used
+  to redeem admin/staff invites — see
+  [rbac.md](rbac.md#sign-in-methods)). See
   [sprints/13](<sprints/[DONE] 13-guided-boutique-onboarding.md>) and
   [data-model.md](data-model.md#guided-boutique-onboarding-sprint-13).
 - **Payment on the storefront** (was #6c below). `/storefront` is now
@@ -264,7 +267,8 @@ pipeline is built and waiting on the client to provide
 the client directly since they asked for this as a next step and it's
 blocked on them, not on build work.
 
-**Longer-term vision (explicitly "nice to have," not scheduled):**
+**Longer-term vision (explicitly "nice to have," not scheduled, at the time
+of the 2026-08-14 meeting):**
 - **Approvisionnement → Mombongo integration.** Link AROM's supply data
   to a Mombongo administrator account so the ~25 partner
   plantations' data syncs automatically instead of manual entry, with
@@ -272,6 +276,20 @@ blocked on them, not on build work.
   Excel, from Mombongo, or from Agroconnect). The client was explicit
   this depends on Mombongo's own maturity and AROM's own process
   simplification first — "pas pour tout de suite."
+
+  **Status update (2026-09-15): superseded by a real, mostly-done
+  integration.** A *different*, narrower Mombongo integration than the
+  one described above has since shipped, mobile-only, across
+  MOB-06A–MOB-10 and Sprint DP: AROM as a buyer/payer against Mombongo's
+  producer-payment and farmer-marketplace APIs (`producerInvoices`,
+  `harvestOffers`, `harvestInvoices` — see
+  [data-model.md](data-model.md#producer-payables-and-mombongo-marketplace-mob-06a---mob-10-mobile-only)),
+  called from AROM-Mobile via AROM-Production's `/api/mombongo/*` server
+  routes, `testMode`-labeled and admin-only. **This does not sync
+  AROM's supply/product data from Mombongo's ~25 partner plantations** —
+  the "auto-populate approvisionnement/products from Mombongo" idea
+  described above remains unbuilt and unscheduled. Don't assume the two
+  are the same integration when scoping future work here.
 - **Auto-populate production from approvisionnement.** Today both are
   filled by hand; quantities already entered at the approvisionnement
   step could pre-fill the matching production entry. Mentioned as

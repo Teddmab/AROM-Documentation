@@ -109,27 +109,49 @@ Two pipelines, deliberately scoped to what each repo actually owns:
   the `FIREBASE_SERVICE_ACCOUNT_KEY` repo secret. Unaffected by the
   Lovable removal — this pipeline never depended on Lovable.
 
-## Topology (as of 2026-08-14)
+## Topology (as of 2026-09-15)
 
 ```
-                 ┌─────────────────────────┐
-   visitors ───► │  Cloudflare Workers      │  AROM-Production (frontend)
-                 │  (SSR + static)          │  — deploy pipeline: see the
-                 └─────────────┬────────────┘    2026-08-14 update below
-                                │ Firebase Web SDK
-                                ▼
-                 ┌─────────────────────────┐
-                 │   Firebase: arom-production
-                 │   - Auth (email/password, Google, Facebook)
-                 │   - Firestore (ERP data, users, invites, products, orders)
-                 │   - Storage (product photos)
-                 └─────────────┬────────────┘
-                                │ rules deploy (CI) / admin scripts
-                                ▼
-                 ┌─────────────────────────┐
-                 │   AROM-Backend           │  rules, seed & account scripts
-                 └─────────────────────────┘
+   visitors ───► Cloudflare Workers (AROM-Production, SSR + static)
+                       │ Firebase Web SDK
+                       ▼
+             Firebase: arom-production
+             (Auth, Firestore — incl. producerInvoices/
+              harvestOffers/harvestInvoices —, Storage)
+                 ▲                        │
+                 │ Firebase Web SDK       │ rules deploy (CI) / admin scripts
+                 │ (cache-first reads,    ▼
+                 │  offline mutation  AROM-Backend
+                 │  queue)            (rules, seed & account scripts)
+                 │
+             AROM-Mobile (Expo Router / RN, staff-only,
+             no GitHub remote yet) ───┐
+                 │ Firebase ID token   │ (same Firestore access
+                 ▼ (Bearer)            │  path as above for every
+        AROM-Production's             │  collection except the
+        /api/mombongo/* routes        │  Mombongo-adjacent ones)
+        (holds the Mombongo
+         signing secrets, calls
+         Mombongo's API)
 ```
+
+**AROM-Mobile** (Expo Router + React Native, staff-only — see the root
+workspace `CLAUDE.md`) is a second, independent client of the same
+`arom-production` Firebase project, not a wrapper around
+`AROM-Production`. It talks to Firestore directly with the Firebase Web
+SDK (cache-first reads via a per-role sync plan, an offline-ordered
+mutation queue for writes — see `AROM-Mobile/AGENTS.md` and the mobile
+sprint docs under `sprints/Mobile/`) for every collection except the
+Mombongo-adjacent ones. For `producerInvoices`/`harvestOffers`/
+`harvestInvoices` (admin-only, see [rbac.md](rbac.md) and
+[data-model.md](data-model.md#producer-payables-and-mombongo-marketplace-mob-06a---mob-10-mobile-only)),
+mobile does not write Firestore directly — it calls AROM-Production's
+`/api/mombongo/*` server routes with the signed-in admin's Firebase ID
+token, and those routes (not the mobile client) hold the Mombongo
+integration's signing secrets and call Mombongo's API. There is
+currently no independent build/deploy pipeline for AROM-Mobile — EAS
+builds are triggered manually; see the mobile sprint docs, not this file,
+for that operational detail.
 
 ## Update (2026-08-14): Lovable removed
 

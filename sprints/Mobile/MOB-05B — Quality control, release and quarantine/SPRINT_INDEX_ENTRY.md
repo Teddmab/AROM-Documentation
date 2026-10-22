@@ -1,0 +1,1 @@
+| MOB-05B | Production & stock — contrôle qualité, libération et quarantaine | Après MOB-05A | Drafts, offline, transaction idempotente, header + bottom nav obligatoires | **Terminé** (2026-09-01), dans les limites de MOB-05C (résolution de quarantaine, hors scope). |

@@ -13,8 +13,8 @@ flow had drifted from what the pages actually did; keep it in sync with
 | --- | --- | --- | --- | --- |
 | Visitor | `/` | `/login`, `/storefront/signup`, `/dashboard` (bounces to login) | none | — |
 | Partner | `/storefront/signup` → `/storefront` (Catalogue / Mes commandes tabs) | catalog, cart, checkout (mobile money or cash on delivery), own orders (live via `onSnapshot`) | `products` (read), `orders` (own — create, read; cancel while pending) | no product photos, no promo banner, no real PawaPay credentials (stubbed), order status has no delivery ETA |
-| Staff | `/login` → `/dashboard` | sections listed in `menus` | full read/write on all internal collections — `firestore.rules` doesn't scope by `menus` (documented, deliberate for now, see roadmap #1) | account creation/deactivation is CLI-only |
-| Admin | `/login` → `/dashboard` | everything | everything, incl. the order→`ventes` bridge | no catalog UI, no promo UI, no server-side payment webhook (client-side polling only, see below) |
+| Staff | `/login` → `/dashboard`, or `/storefront/signup` → "J'ai une invitation d'équipe" → `/dashboard` (redeeming an invite with a fresh OAuth/email account) | sections listed in `menus` | full read/write on all internal collections — `firestore.rules` doesn't scope by `menus` (documented, deliberate for now, see roadmap #1) | account creation/deactivation is CLI-only |
+| Admin | `/login` → `/dashboard`, or `/storefront/signup` invite redemption (same as Staff) | everything | everything, incl. the order→`ventes` bridge | no catalog UI, no promo UI, no server-side payment webhook (client-side polling only, see below) |
 
 Auth/session edge cases (deactivated account, no profile doc, already-signed-in
 user hitting `/storefront/signup`) are now handled explicitly — see

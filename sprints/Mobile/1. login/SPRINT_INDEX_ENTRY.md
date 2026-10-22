@@ -1,0 +1,1 @@
+| MOB-01 | Role-aware login | Five role variants, shared phone login, offline/error states and server-authorized role reconciliation | **Superseded 2026-08-27, then Done** — replaced same-day by a login-first email/password + Google/Facebook flow; see this folder's README for why and `src/app/login.tsx` for the current implementation. |

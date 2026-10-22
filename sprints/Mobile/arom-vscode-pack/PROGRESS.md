@@ -28,6 +28,61 @@ all of which are mechanical/process gaps. 09 blocked on business
 approvals, not started. 10 not started; Android QA build ready, iOS
 TestFlight build now finished (upgraded from "in progress").
 
+## ✅ 2026-09-22 correction — read this first, supersedes most of the 2026-09-18 audit below
+
+A fresh, independent re-verification (git log/show against `origin/main`
+on all four repos, not just local `main`; a live re-read of
+`AROM-Backend`'s deployed `firestore.rules`/`firestore.transitional.rules`
+and their full test suite; a direct check of the QA Worker's own
+`inventory-service` identity/claim/secrets) found that **most of the
+"nothing is pushed"/"nothing is deployed to QA" picture below is now
+stale.** Per the instruction that produced this correction: *"Do not
+assume that the old tracker is current."* It wasn't. Specifically:
+
+- **Obsolete: "Nothing from the last month is pushed to GitHub, in any of
+  the three code repos"** (⚠️ section below, and everything downstream of
+  it in the old "Next sprint" plan, steps 1–4). All three repos'
+  `origin/main` now contain Steps A–D in full — confirmed via
+  `git log origin/main`/`git show origin/main:<path>` on all three, not
+  inferred from local branches. `AROM-Production` `origin/main` is at
+  `5d61d11`; `AROM-Backend` `origin/main` is at `8fb5911`; `AROM-Mobile`
+  `origin/main` is at `4ca4682` — all three well past every commit hash
+  the 2026-09-18 section below cites as "local only."
+- **Obsolete: "the production `inventory-service` Firebase identity does
+  not exist."** The **QA** Worker (`arom-production-qa`) has the
+  `inventory-service` identity fully provisioned with the exact minimal
+  `{inventoryService: true}` custom claim and all 3 required secrets — QA
+  is deployment-ready for every trusted-route flow Steps B–D built.
+  Production still lacks this identity (that part of the old finding
+  **is** still accurate for the production project specifically — see
+  "Next sprint," corrected below).
+- **Obsolete: "Steps E/F — not built" / "Next up: Step E (direct sales)"
+  as a not-yet-started item.** Step E is now implemented — see "08 —
+  Finished-product stock and reservations" below for the corrected
+  status, contracts, and open PRs. **Step F and Sprint 06's remaining
+  sales-wizard work are still not started** — that part of the old
+  framing stands.
+- **Obsolete (partially): Sprint 06's "`LotsStep.tsx` is a manual,
+  mandatory multiselect showing the lot ID directly during normal entry"
+  finding.** Step E's mobile repoint (below) removes the "lots" wizard
+  step entirely — a direct sale never shows or collects a lot id during
+  entry any more. Sprint 06's *other* gaps (mandatory client, no
+  large-target numeric input, no availability check before Step E) are
+  unaffected and still open.
+- **Still accurate, not superseded**: the live **production** Firestore
+  project (`arom-production-657f2`) still has none of Steps B/C/D's
+  security model deployed, the production `inventory-service` identity
+  still doesn't exist, and `AROM-Production`'s production Cloudflare
+  Worker deploy and `AROM-Backend`'s production rules-deploy workflow
+  gaps described below have not been independently re-verified this
+  session (out of this task's scope — Mombongo and the reception
+  lifecycle were explicitly not touched). Treat the "⚠️ Production
+  deployment integrity" section below as **historically accurate for
+  2026-09-18, but describing a state whose "nothing pushed" premise no
+  longer holds** — read it for the *mechanical gaps it found*
+  (Worker deploy config, rules-deploy target, missing production
+  secrets), not for its push/merge status claims.
+
 ## ⚠️ Production deployment integrity (found 2026-09-18) — read first
 
 This section exists because every other status in this file was written
@@ -634,6 +689,13 @@ Pushed-to-origin column added 2026-09-18 — see "⚠️ Production deployment
 integrity" above for why this is now tracked as its own dimension,
 separate from "done."
 
+**Obsolete as of 2026-09-22: every "❌ No" in the "Pushed to origin?"
+column below.** All three repos' `origin/main` now contain everything
+this table lists as unpushed (re-verified via `git log origin/main` on
+each, not re-read row by row) — see the correction section at the top of
+this file. The rest of each row (status, evidence) was not re-audited
+this session except where sprint 08/06 are called out above and below.
+
 | # | Prompt | Status | Pushed to origin? | Evidence |
 |---|---|---|---|---|
 | 01 | `01-documentation-and-flags.md` | ✅ Complete | ❌ No (Mobile 30 commits ahead) | AROM-Mobile `login.tsx`, `oauthConfig.ts`, `getPaymentGateway.ts`, `easConfig.test.ts`; AROM-Documentation `architecture.md`/`data-model.md`/`roadmap.md` content (dirty, uncommitted, but correct) |
@@ -643,7 +705,7 @@ separate from "done."
 | 05 | `05-reception-and-production.md` | ✅ Complete | ❌ No | Reception: `ProducerStep.tsx`, `receptionStatus.ts`. Quality journey: `productions.tsx`, `qualityRepository.ts` head-control walk, `resolve.tsx`. Production/packaging redesign: `25996b9`, `4e1c4c9`. Lot-detail redesign: `eae9cf4`/`bdfcfad`/`fe4ec14`/`1f53ccb`. No reception-redesign kit exists anywhere beyond this — confirmed 2026-09-18, nothing outstanding here |
 | 06 | `06-sales.md` | 🟡 Partial | ❌ No | Wizard order close but client is still mandatory, lot picker is manual/mandatory and shows lot IDs, no +/- controls, **no availability check of any kind exists** — re-verified byte-for-byte unchanged 2026-09-18, even after `d034b66` added a real `stockBalance` sync category for PRODUCTION/SALES (that category is not consumed anywhere in the sale wizard) |
 | 07 | `07-admin.md` | 🔁 **Superseded, closed** | ❌ No | `admin-operations.tsx` (158 lines) deliberately kept as a real, data-free navigation directory instead of a "temporary redirect," per its own doc comment and `design-references/admin/overview-redesign/AROM_ADMIN_OVERVIEW_REFERENCE.md` — zero remaining nav entry points, closed by `c118ff2`/`b637b40`/`86aef83` (2026-09-17, before this tracker's prior revision was even written). Two further un-incorporated redesigns landed the same day, also not yet folded into this pack: the work-queue replacement of "Consignes" (`cbe18b3`, spec at `design-references/work-queue/`) and the finished-stock dedup/honesty fix (`d034b66`, spec at `design-references/stock-pf/`) |
-| 08 | `08-finished-product-stock.md` | 🟡 Partial (Steps A–D 🛠 implemented, not deployed — see above) | ❌ No | **Steps A–D** (schema, QC-release receipts, order reservation/cancel/fulfil, dashboard integration) genuinely built, tested, and — per the "⚠️ Production deployment integrity" section above — confirmed **not live in production** for 7 independent reasons (unpushed, broken Worker deploy, wrong rules-deploy target, live rules missing the whole security model, no inventory-service identity, missing Worker secrets, no backend URL in the shipped mobile build). The old "dashboard fix not merged" framing is stale: `93ccda3`'s content is confirmed byte-identical on local `main` via `a33bda1` (cherry-pick) — the real remaining gap is deployment, not merge. **Steps E/F** (direct-sale, UI) **not started** — confirmed zero trace of any `direct-sale` endpoint or `CommercialisationSection` repoint |
+| 08 | `08-finished-product-stock.md` | 🟡 Partial (Steps A–E 🛠 implemented — E in open PRs, not deployed) | ✅ Steps A–D yes, Step E in open PRs (below) | **Steps A–D** (schema, QC-release receipts, order reservation/cancel/fulfil, dashboard integration) are on `origin/main` on all three repos (re-confirmed 2026-09-22). **Step E (direct sales) is now implemented**, not yet merged: `AROM-Backend` PR [#24](https://github.com/Teddmab/AROM-Backend/pull/24), `AROM-Production` PR [#31](https://github.com/Teddmab/AROM-Production/pull/31), `AROM-Mobile` PR [#18](https://github.com/Teddmab/AROM-Mobile/pull/18) — see the detailed writeup below. Production deployment (Worker deploy config, rules-deploy target, `inventory-service` identity/secrets for the *production* project) remains an open gap, unaffected by this PR set — QA is fully deployment-ready. **Step F** (sprint 06's remaining sales-wizard work) **not started**. |
 | 09 | `09-partner-orders.md` | 🚧 Blocked (business) | n/a | Explicitly gated on business approvals (payment/refund ownership, formats/prices, reservation duration/release policy, customer data, partner naming) — no approval record found anywhere in AROM-Documentation, re-confirmed 2026-09-18 |
 | 10 | `10-field-validation.md` | ⬜ Not started | n/a | Depends on 06/07/08/09 being substantially done first. Android QA APK ready. iOS build `fbca0b40` now **FINISHED** (was "in progress" as of 2026-09-17) — TestFlight submission/testers still unconfirmed |
 
@@ -731,11 +793,24 @@ This remainder is small, self-contained, and does not conflict with sprint 08 �
   - **Update (2026-09-17, later same day): landed on `main`.** A dedicated stabilization session first versioned the previously-uncommitted Mombongo-integration slice as `AROM-Production` `2db292a` (`feat(mombongo): version existing invoice integration` — outbound calls, inbound webhook, 5 mobile-facing routes, 152 tests; see `AROM-Documentation/mombongo-integration-audit.md` and `architecture.md`'s "Mombongo integration — status" section), then cherry-picked `93ccda3` on top as `a33bda1`. The other unrelated uncommitted work (`tasks.ts`, `auth.tsx`, `login.tsx`, `join.tsx`, `storefront/signup.tsx`, and dashboard's task-stage-scoping/photo-evidence changes) was preserved, not lost — see branch `recovery/pre-dashboard-repair-dirty-work` on `AROM-Production`. **Sprint 08 Steps C/D, including the dashboard integration gap, are now fully done on local `main`.**
   - **Correction (2026-09-18): "done and on `main`" was true only of the local repository.** `a33bda1` (and everything under it, including `2db292a`, `d7385bf`, `684702e`) has never been pushed to `origin/main` — confirmed via `git rev-list --left-right --count origin/main...main` (17 commits ahead). Even a push alone would not make this live: AROM-Production's Cloudflare Worker deploy has a 100% historical CI failure rate (wrangler config conflict, root-caused and fixed in an unpushed branch — see "⚠️ Production deployment integrity" above), and the corresponding `firestore.rules` changes (`d7385bf`/`684702e`, plus Step A/B's `25a2770`/`fc096fb`/`ea218bc`) were never deployed to the real project either (AROM-Backend's `deploy-rules.yml` has always targeted the wrong Firebase project — also root-caused and fixed in an unpushed branch). The live production Firestore rules, fetched directly 2026-09-18, contain none of Steps B/C/D's security model, and the production `inventory-service` Firebase identity does not exist. **Steps C/D are implemented and tested, not deployed.**
 
-**Steps E/F — not built.** Fully specified, pre-approved architecture exists at `AROM-Documentation/automation-engine.md` lines 217-476 ("Reservation and balance projections — approved architecture (Sprint 08, 2026-09; not yet implemented)") and its own stated build order at line 664: *"Step A ... before B ... before C/D (order reservation/fulfilment, meaningless without B already trusted) before E (direct sales) before F (UI)."*
-- **E — direct sales**: repoint `AROM-Production`'s `CommercialisationSection` and `AROM-Mobile`'s `sale-new` at a `direct-sale` trusted endpoint.
-- **F — UI**: sprint 06's own remaining sales-wizard work, naturally sequenced after E.
+**Step E (direct sales) — implemented 2026-09-22, in open PRs, not merged/deployed.** Fully specified, pre-approved architecture at `AROM-Documentation/automation-engine.md` lines 217-476 ("Direct sales (no order)" section) — one deliberate deviation from that text is documented in `directSale.ts`'s own doc comment: the server always decides FIFO allocation now, it never honors a client-supplied lot selection (the original text said a worker's own pick would be "honored when still available"). Superseded by the later, more specific instruction that lot ids must never be exposed during normal sale entry at all.
 
-→ **Next up: Step E (direct sales)** — mobile Mombongo invoice reflection (below) is done.
+- **`AROM-Production`** (PR [#31](https://github.com/Teddmab/AROM-Production/pull/31), branch `feat/direct-sale-trusted-operation`, off `origin/main` `5d61d11`): `src/lib/inventory/directSale.ts` (the operation — reuses `orderReservation.ts`'s FIFO/transaction machinery verbatim, `verifyCommercialInventoryCaller` for auth, the same read-target-doc-first idempotency idiom as QC release/order confirm/cancel/fulfil) + `POST /api/inventory/direct-sale`. 24 new tests, `tsc`/`eslint` clean, `bun run build` succeeds and registers the route.
+- **`AROM-Backend`** (PR [#24](https://github.com/Teddmab/AROM-Backend/pull/24), branch `feat/direct-sale-rules`, off `origin/main` `8fb5911`): `stockPF` gains Sortie-row (`PF-OUT-*`) create support — **this also fixes a real, previously-undetected gap**: Step D's `fulfilOrderReservation` has been writing these rows since it shipped, with no Rules ever allowing it (they would have been rejected in any real deployment). `ventes` gains a narrow, reserved `VTE-DS-*` id space, `isInventoryService()`-only, immutable, legacy ids fully unaffected. Found and fixed two Rules bugs along the way (both the same "an unguarded field/claim access in a branch that's supposed to be irrelevant still throws instead of short-circuiting" class as the `data.get()` fixes documented elsewhere in this file): `isInventoryService()` threw for a token lacking the claim instead of returning `false`; a new helper referenced the enclosing `match` block's `id` path variable without receiving it as a parameter (top-level functions don't close over that). 68 new Rules tests, full suite 27 files/1517 tests passing, no regressions, no expression-budget issue.
+- **`AROM-Mobile`** (PR [#18](https://github.com/Teddmab/AROM-Mobile/pull/18), branch `feat/direct-sale-repoint`, off `origin/main` `4ca4682`): `saleDraft.ts` ids are now `VTE-DS-<uuid>` (was `VTE-<uuid>`), with a v1→v2 draft migration for any in-flight draft; `directSaleClient.ts` (new) calls the trusted route, mirroring `orderReservationClient.ts`'s retryable-vs-permanent split; `saleSync.ts`'s `syncOne` calls the trusted operation instead of `setDoc` (no Firestore fallback anywhere in the new path) and marks a genuine conflict (insufficient stock, revoked capability, malformed/stale request) so `syncPendingSales` never wastes an automatic retry on it, same discipline `productionSync.ts` already has. **The "lots" wizard step is removed from the flow entirely** — this also closes the sprint 06 gap below ("lot picker is manual/mandatory and shows lot IDs") for entry, though sprint 06's other gaps (mandatory client, no +/- controls, no availability check) are still open. Full suite 201 files/2988 tests passing, `tsc`/`eslint` clean, `expo export --platform web` succeeds.
+
+**Update, same day: two corrections found on review, both fixed in the same 3 PRs (heads updated, not new PRs).**
+
+1. **AROM-Production's own dashboard had two live direct-sale writers left unrepointed** — the "Nouvelle vente" `EntryForm` and the "commercialisation" task-completion handler both still wrote `ventes` via `addRow`. Both now call a new `directSaleClient.ts` (web), mirroring `orderReservationClient.ts`'s pattern, with no Firestore fallback on any failure. `ImportButton.tsx`'s bulk CSV/Excel import is deliberately left untouched — documented and tested as a distinct, non-live, non-stock-affecting historical-bookkeeping workflow, not a bypass. **Found while auditing every writer**: `orderReservation.ts`'s own order-fulfilment bridge row (`VTE-ORD-<orderId>-<idx>`) has been writing `ventes` since Step D shipped with **no Rule ever allowing it** (the Worker's identity satisfies none of `isAdmin()`/`isUnscopedStaff()`/`isCommercialStaff()`) — fixed alongside Step E's own id space in the same Backend PR.
+2. **Idempotency was too weak** — a `saleId` resolving to an existing document was treated as "already applied" on bare existence alone, which would have silently accepted a *different* request reusing an id (a client bug, a forged retry, a stale draft id reused across devices) as a no-op success. Now compares a fingerprint (format, quantity, price, remise, encaisse, customer attribution, canal, commerciale, actor uid) between the stored document and the incoming request: equivalent → `alreadyApplied`, different → an explicit `conflict` (409), never overwritten, stock never touched twice. The exact field set and the reasoning for each inclusion/exclusion is documented in `directSale.ts`'s own doc comment. The test harness's mock transaction now genuinely simulates Firestore's optimistic-concurrency retry, so "two simultaneous requests" tests exercise real interleaving.
+
+Updated heads: `AROM-Backend` `62d3c77`, `AROM-Production` `b9fda29` (`AROM-Mobile` unchanged, still `84356e4` — confirmed by repository-wide audit to have zero direct `ventes` writes already). Backend full suite 27 files/1531 tests; Production full suite (clean install, not the worktree's stale symlinked `node_modules` — see below) 35 files/537 tests; Mobile unchanged, 201 files/2988 tests. All `tsc`/`eslint` clean, Production `bun run build` succeeds.
+
+**Aside, unrelated to this task but found while verifying**: the previous session's "32/33 Production test files, 1 pre-existing failure" note undersold it — that failure (`scripts/ci/workflowSafety.test.ts`, missing `yaml`) was a stale `node_modules` in this task's own git worktree, not a real gap. Removing the worktree's symlinked `node_modules` and running a plain `bun install` fixed it (no `package.json`/lockfile change — `yaml` was already correctly declared, just never installed). The real local `AROM-Production` checkout has the exact same staleness (confirmed directly) — a plain `bun install` there would fix it; not done here since it isn't part of this task's own changes.
+
+**Step F — not started.** Sprint 06's own remaining sales-wizard work, naturally sequenced after E.
+
+→ **Next up:** merge/deploy the 3 PRs above in order (Backend Rules → Production route → Mobile repoint — see PR bodies for the explicit reasoning), then Step F.
 
 ## Mombongo invoice reflection — ✅ Done (2026-09-17, later same day)
 
@@ -784,7 +859,7 @@ should run unattended):
 
 Only once 1–5 are done does it make sense to pick up:
 
-**(a) Sprint 08 Step E (direct sales)** and **Sprint 06's remaining sales-wizard work** — both build on the reservation infrastructure 1–5 would finally make real.
+**(a) Sprint 08 Step E (direct sales) — done as of 2026-09-22, see above (implemented, 3 PRs open, not yet merged/deployed).** **Sprint 06's remaining sales-wizard work** (Step F) is still genuinely not started, and still builds on the reservation infrastructure 1–5 would make real in production (QA already has it).
 
 **(b) Sprint 10's first uncoached observation session** — independent of 1–5 (it exercises the currently-working, non-trusted-route parts of the app: reception, production, quality). The technical blocker (a real installable device build) is already cleared. Needs a real worker/tester and the account owner present.
 
